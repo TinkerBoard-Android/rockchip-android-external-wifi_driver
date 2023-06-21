@@ -69,9 +69,7 @@
 #include <frag.h>
 #endif /* WL_FILS */
 
-#ifdef OEM_ANDROID
 #include <wl_android.h>
-#endif
 
 #if defined(BCMDONGLEHOST)
 #include <dngl_stats.h>
@@ -566,6 +564,16 @@ wl_cfg80211_data_if_mgmt(struct bcm_cfg80211 *cfg,
 		 */
 		return BCME_OK;
 	}
+#else
+#ifdef BCMDONGLEHOST
+	if (DHD_OPMODE_SUPPORTED(cfg->pub, DHD_FLAG_RSDB_MODE)) {
+		if (sec_wl_if_type == WL_IF_TYPE_AP &&
+			(new_wl_iftype == WL_IF_TYPE_AP || new_wl_iftype == WL_IF_TYPE_STA)) {
+			/* RSDB chip can allow dual apsta */
+			return BCME_OK;
+		}
+	}
+#endif /* BCMDONGLEHOST */
 #endif /* WL_DUAL_APSTA */
 
 	/* Handle secondary data link case */
@@ -1319,9 +1327,6 @@ wl_cfg80211_change_virtual_iface(struct wiphy *wiphy, struct net_device *ndev,
 		{
 			if (!wl_get_drv_status(cfg, AP_CREATED, ndev) &&
 					wl_get_drv_status(cfg, READY, ndev)) {
-#if defined(BCMDONGLEHOST) && !defined(OEM_ANDROID)
-				dhd->op_mode = DHD_FLAG_HOSTAP_MODE;
-#endif /* BCMDONGLEHOST */
 				err = wl_cfg80211_set_ap_role(cfg, ndev);
 				if (unlikely(err)) {
 					WL_ERR(("set ap role failed!\n"));
@@ -1661,7 +1666,7 @@ wl_cfg80211_set_channel(struct wiphy *wiphy, struct net_device *dev,
 	enum nl80211_channel_type channel_type
 #else
 	enum nl80211_chan_width width
-#endif
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(3, 6, 0) */
 )
 {
 	chanspec_t chspec = INVCHANSPEC;
@@ -3314,11 +3319,9 @@ wl_cfg80211_ap_timeout_work(struct work_struct *work)
 	}
 #endif /* DHD_DEBUG && DHD_FW_COREDUMP */
 
-#if defined(OEM_ANDROID)
 	WL_ERR(("Notify hang event to upper layer \n"));
 	dhdp->hang_reason = HANG_REASON_IFACE_ADD_FAILURE;
 	net_os_send_hang_message(bcmcfg_to_prmry_ndev(cfg));
-#endif /* OEM_ANDROID */
 #endif /* BCMDONGLEHOST */
 }
 
@@ -4094,7 +4097,7 @@ wl_cfg80211_start_ap(
 	if (!dev->ieee80211_ptr->u.ap.preset_chandef.chan)
 #else
 	if (!dev->ieee80211_ptr->preset_chandef.chan)
-#endif
+#endif /* LINUX_VER >= 5.19.2 || CFG80211_BKPORT_MLO */
 	{
 		WL_ERR(("chan is NULL\n"));
 		err = -EINVAL;
@@ -4105,7 +4108,7 @@ wl_cfg80211_start_ap(
 			dev->ieee80211_ptr->u.ap.preset_chandef.chan,
 #else
 			dev->ieee80211_ptr->preset_chandef.chan,
-#endif /* CFG80211_BKPORT_MLO */
+#endif /* LINUX_VER >= 5.19.2 || CFG80211_BKPORT_MLO */
 			info->chandef.width) < 0)) {
 		WL_ERR(("Set channel failed \n"));
 		goto fail;
@@ -4209,7 +4212,7 @@ fail:
 		wl_cfg80211_stop_ap(wiphy, dev, 0);
 #else
 		wl_cfg80211_stop_ap(wiphy, dev);
-#endif /* CFG80211_BKPORT_MLO */
+#endif /* LINUX_VER >= 5.19.2 || defined(CFG80211_BKPORT_MLO) */
 		if (dev_role == NL80211_IFTYPE_AP) {
 #ifdef WL_EXT_IAPSTA
 		if (!wl_ext_iapsta_iftype_enabled(dev, WL_IF_TYPE_AP)) {
@@ -4259,8 +4262,8 @@ wl_cfg80211_stop_ap(
 	struct net_device *dev
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 2) || defined(CFG80211_BKPORT_MLO)
 	, unsigned int link_id
-#endif /* CFG80211_BKPORT_MLO */
-	)
+#endif /* LINUX_VER >= 5.19.2 || CFG80211_BKPORT_MLO */
+)
 {
 	int err = 0;
 	u32 dev_role = 0;
@@ -4413,7 +4416,7 @@ wl_cfg80211_stop_ap(
 		/* Do we need to do something here */
 		WL_DBG(("Stopping P2P GO \n"));
 
-#if defined(BCMDONGLEHOST) && defined(OEM_ANDROID)
+#if defined(BCMDONGLEHOST)
 		DHD_OS_WAKE_LOCK_CTRL_TIMEOUT_ENABLE((dhd_pub_t *)(cfg->pub),
 			DHD_EVENT_TIMEOUT_MS*3);
 		DHD_OS_WAKE_LOCK_TIMEOUT((dhd_pub_t *)(cfg->pub));
@@ -5829,11 +5832,14 @@ wl_cfg80211_ch_switch_notify(struct net_device *dev, uint16 chanspec, struct wip
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION (3, 8, 0))
 	freq = chandef.chan ? chandef.chan->center_freq : chandef.center_freq1;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 2) || defined(CFG80211_BKPORT_MLO)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0) || \
+		((ANDROID_VERSION >= 13) && (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 94)))
+	cfg80211_ch_switch_notify(dev, &chandef, 0, 0);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 2) || defined(CFG80211_BKPORT_MLO)
 	cfg80211_ch_switch_notify(dev, &chandef, 0);
 #else
 	cfg80211_ch_switch_notify(dev, &chandef);
-#endif /* CFG80211_BKPORT_MLO */
+#endif /* LINUX_VER >= 5.19.2 || defined(CFG80211_BKPORT_MLO) */
 #elif (LINUX_VERSION_CODE >= KERNEL_VERSION (3, 5, 0) && (LINUX_VERSION_CODE <= (3, 7, 0)))
 	freq = chandef.freq;
 	cfg80211_ch_switch_notify(dev, freq, chandef.chan_type);
@@ -6760,7 +6766,7 @@ wl_set_ap_suspend_error_handler(struct net_device *ndev, bool suspend)
 #endif /* DHD_FW_COREDUMP */
 #endif /* BCMDONGLEHOST */
 
-#if defined(BCMDONGLEHOST) && defined(OEM_ANDROID)
+#if defined(BCMDONGLEHOST)
 		WL_ERR(("Notify hang event to upper layer \n"));
 		dhdp->hang_reason = suspend ?
 			HANG_REASON_BSS_DOWN_FAILURE : HANG_REASON_BSS_UP_FAILURE;

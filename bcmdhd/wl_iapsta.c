@@ -498,6 +498,7 @@ wl_ext_parse_wep(char *key, struct wl_wsec_key *wsec_key)
 		else
 			return -1;
 		/* fall through */
+		fallthrough;
 	case 10:
 	case 26:
 	case 32:

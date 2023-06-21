@@ -40,9 +40,9 @@
 #include <bcmiov.h>
 #endif /* DHD_SDTC_ETB_DUMP */
 
-#ifdef BCMDBG
+#if defined(DHD_MACDBG) && defined(BCMDBG)
 #include <dhd_macdbg.h>
-#endif /* BCMDBG */
+#endif /* defined(DHD_MACDBG) && defined(BCMDBG) */
 
 #ifdef PCIE_FULL_DONGLE
 #include <bcmmsgbuf.h>
@@ -75,7 +75,7 @@
 #include <wl_cfg80211.h>
 #include <wl_cfgvif.h>
 #endif
-#if defined(OEM_ANDROID) && defined(PNO_SUPPORT)
+#if defined(PNO_SUPPORT)
 #include <dhd_pno.h>
 #endif /* (OEM_ANDROID) && (PNO_SUPPORT) */
 #ifdef RTT_SUPPORT
@@ -168,9 +168,6 @@ int dhd_log_level = DHD_ERROR_VAL | DHD_FWLOG_VAL | DHD_EVENT_VAL
 #if !defined(BOARD_HIKEY)
 	| DHD_IOVAR_MEM_VAL
 #endif
-#ifndef OEM_ANDROID
-	| DHD_MSGTRACE_VAL
-#endif /* OEM_ANDROID */
 	| DHD_RPM_VAL
 	| DHD_PKT_MON_VAL;
 
@@ -292,11 +289,9 @@ static int ioctl_suspend_error = 0;
 /* Should ideally read this from target(taken from wlu) */
 #define MAX_CHUNK_LEN 1408 /* 8 * 8 * 22 */
 
-#if defined(OEM_ANDROID)
 /* note these variables will be used with wext */
 bool ap_cfg_running = FALSE;
 bool ap_fw_loaded = FALSE;
-#endif /* defined(OEM_ANDROID) && defined(SOFTAP) */
 
 #ifdef WLEASYMESH
 extern int dhd_set_1905_almac(dhd_pub_t *dhdp, uint8 ifidx, uint8* ea, bool mcast);
@@ -420,11 +415,11 @@ enum {
 #ifdef DHD_MCAST_REGEN
 	IOV_MCAST_REGEN_BSS_ENABLE,
 #endif
-#ifdef BCMDBG
+#if defined(DHD_MACDBG) && defined(BCMDBG)
 	IOV_MACDBG_PD11REGS,
 	IOV_MACDBG_REGLIST,
 	IOV_MACDBG_PSVMPMEMS,
-#endif /* BCMDBG */
+#endif /* defined(DHD_MACDBG) && defined(BCMDBG) */
 #ifdef SHOW_LOGTRACE
 	IOV_DUMP_TRACE_LOG,
 #endif /* SHOW_LOGTRACE */
@@ -584,11 +579,11 @@ const bcm_iovar_t dhd_iovars[] = {
 #ifdef DHD_MCAST_REGEN
 	{"mcast_regen_bss_enable", IOV_MCAST_REGEN_BSS_ENABLE, 0, 0, IOVT_BOOL, 0},
 #endif
-#ifdef BCMDBG
+#if defined(DHD_MACDBG) && defined(BCMDBG)
 	{"pd11regs", IOV_MACDBG_PD11REGS, 0, 0, IOVT_BUFFER, 0},
 	{"mreglist", IOV_MACDBG_REGLIST, 0, 0, IOVT_BUFFER, 0},
 	{"psvmpmems", IOV_MACDBG_PSVMPMEMS, 0, 0, IOVT_BUFFER, 0},
-#endif /* BCMDBG */
+#endif /* defined(DHD_MACDBG) && defined(BCMDBG) */
 #ifdef SHOW_LOGTRACE
 	{"dump_trace_buf", IOV_DUMP_TRACE_LOG,	0, 0, IOVT_BUFFER,	sizeof(trace_buf_info_t) },
 #endif /* SHOW_LOGTRACE */
@@ -673,10 +668,8 @@ dhd_query_bus_erros(dhd_pub_t *dhdp)
 		DHD_ERROR_RLMT(("%s: FW TRAP has occurred, cannot proceed\n",
 			__FUNCTION__));
 		ret = TRUE;
-#ifdef OEM_ANDROID
 		dhdp->hang_reason = HANG_REASON_DONGLE_TRAP;
 		dhd_os_send_hang_message(dhdp);
-#endif /* OEM_ANDROID */
 	}
 
 	if (dhdp->iovar_timeout_occured) {
@@ -859,180 +852,9 @@ dhd_sssr_reg_info_deinit(dhd_pub_t *dhd)
 	}
 }
 
-#ifdef DHD_PCIE_REG_ACCESS
-static void
-dhd_dump_sssr_reg_info_v2(dhd_pub_t *dhd)
-{
-	sssr_reg_info_cmn_t *sssr_reg_info_cmn = dhd->sssr_reg_info;
-	sssr_reg_info_v2_t *sssr_reg_info = (sssr_reg_info_v2_t *)&sssr_reg_info_cmn->rev2;
-	int i, j;
-	uint8 num_d11cores = dhd_d11_slices_num_get(dhd);
-	DHD_ERROR(("pmu_regs\n"));
-	DHD_ERROR(("pmuintmask0=0x%x pmuintmask1=0x%x resreqtimer=0x%x "
-		"macresreqtimer=0x%x macresreqtimer1=0x%x\n",
-		sssr_reg_info->pmu_regs.base_regs.pmuintmask0,
-		sssr_reg_info->pmu_regs.base_regs.pmuintmask1,
-		sssr_reg_info->pmu_regs.base_regs.resreqtimer,
-		sssr_reg_info->pmu_regs.base_regs.macresreqtimer,
-		sssr_reg_info->pmu_regs.base_regs.macresreqtimer1));
-	DHD_ERROR(("chipcommon_regs\n"));
-	DHD_ERROR(("intmask=0x%x powerctrl=0x%x clockcontrolstatus=0x%x powerctrl_mask=0x%x\n",
-		sssr_reg_info->chipcommon_regs.base_regs.intmask,
-		sssr_reg_info->chipcommon_regs.base_regs.powerctrl,
-		sssr_reg_info->chipcommon_regs.base_regs.clockcontrolstatus,
-		sssr_reg_info->chipcommon_regs.base_regs.powerctrl_mask));
-	DHD_ERROR(("arm_regs\n"));
-	DHD_ERROR(("clockcontrolstatus=0x%x clockcontrolstatus_val=0x%x"
-		" resetctrl=0x%x extrsrcreq=0x%x\n",
-		sssr_reg_info->arm_regs.base_regs.clockcontrolstatus,
-		sssr_reg_info->arm_regs.base_regs.clockcontrolstatus_val,
-		sssr_reg_info->arm_regs.wrapper_regs.resetctrl,
-		sssr_reg_info->arm_regs.wrapper_regs.extrsrcreq));
-	DHD_ERROR(("pcie_regs\n"));
-	DHD_ERROR(("ltrstate=0x%x clockcontrolstatus=0x%x "
-		"clockcontrolstatus_val=0x%x extrsrcreq=0x%x\n",
-		sssr_reg_info->pcie_regs.base_regs.ltrstate,
-		sssr_reg_info->pcie_regs.base_regs.clockcontrolstatus,
-		sssr_reg_info->pcie_regs.base_regs.clockcontrolstatus_val,
-		sssr_reg_info->pcie_regs.wrapper_regs.extrsrcreq));
-
-	for (i = 0; i < num_d11cores; i++) {
-		DHD_ERROR(("mac_regs core[%d]\n", i));
-		DHD_ERROR(("xmtaddress=0x%x xmtdata=0x%x clockcontrolstatus=0x%x "
-			"clockcontrolstatus_val=0x%x\n",
-			sssr_reg_info->mac_regs[i].base_regs.xmtaddress,
-			sssr_reg_info->mac_regs[i].base_regs.xmtdata,
-			sssr_reg_info->mac_regs[i].base_regs.clockcontrolstatus,
-			sssr_reg_info->mac_regs[i].base_regs.clockcontrolstatus_val));
-		DHD_ERROR(("resetctrl=0x%x extrsrcreq=0x%x ioctrl=0x%x\n",
-			sssr_reg_info->mac_regs[i].wrapper_regs.resetctrl,
-			sssr_reg_info->mac_regs[i].wrapper_regs.extrsrcreq,
-			sssr_reg_info->mac_regs[i].wrapper_regs.ioctrl));
-		for (j = 0; j < SSSR_D11_RESET_SEQ_STEPS; j++) {
-			DHD_ERROR(("ioctrl_resetseq_val[%d] 0x%x\n", j,
-				sssr_reg_info->mac_regs[i].wrapper_regs.ioctrl_resetseq_val[j]));
-		}
-		DHD_ERROR(("sr_size=0x%x\n", sssr_reg_info->mac_regs[i].sr_size));
-	}
-	DHD_ERROR(("dig_regs\n"));
-	DHD_ERROR(("dig_sr_addr=0x%x dig_sr_size=0x%x\n",
-		sssr_reg_info->dig_mem_info.dig_sr_addr,
-		sssr_reg_info->dig_mem_info.dig_sr_size));
-}
-
-static void
-dhd_dump_sssr_reg_info_v3(dhd_pub_t *dhd)
-{
-	sssr_reg_info_cmn_t *sssr_reg_info_cmn = dhd->sssr_reg_info;
-	sssr_reg_info_v3_t *sssr_reg_info = (sssr_reg_info_v3_t *)&sssr_reg_info_cmn->rev3;
-	int i;
-
-	dhd_dump_sssr_reg_info_v2(dhd);
-
-	DHD_ERROR(("FIS Enab in fw : %d\n", sssr_reg_info->fis_enab));
-
-	DHD_ERROR(("HWA regs for reset \n"));
-	DHD_ERROR(("clkenable 0x%x, clkgatingenable 0x%x, clkext 0x%x, "
-		"clkctlstatus 0x%x, ioctrl 0x%x, resetctrl 0x%x\n",
-		sssr_reg_info->hwa_regs.base_regs.clkenable,
-		sssr_reg_info->hwa_regs.base_regs.clkgatingenable,
-		sssr_reg_info->hwa_regs.base_regs.clkext,
-		sssr_reg_info->hwa_regs.base_regs.clkctlstatus,
-		sssr_reg_info->hwa_regs.wrapper_regs.ioctrl,
-		sssr_reg_info->hwa_regs.wrapper_regs.resetctrl));
-	DHD_ERROR(("HWA regs value seq for reset \n"));
-	for (i = 0; i < SSSR_HWA_RESET_SEQ_STEPS; i++) {
-		DHD_ERROR(("hwa_resetseq_val[%d] 0x%x\n", i,
-			sssr_reg_info->hwa_regs.hwa_resetseq_val[i]));
-	}
-}
-
-static void
-dhd_dump_sssr_reg_info_v1(dhd_pub_t *dhd)
-{
-	sssr_reg_info_cmn_t *sssr_reg_info_cmn = dhd->sssr_reg_info;
-	sssr_reg_info_v1_t *sssr_reg_info = (sssr_reg_info_v1_t *)&sssr_reg_info_cmn->rev1;
-	int i, j;
-	uint8 num_d11cores = dhd_d11_slices_num_get(dhd);
-
-	DHD_ERROR(("pmu_regs\n"));
-	DHD_ERROR(("pmuintmask0=0x%x pmuintmask1=0x%x resreqtimer=0x%x "
-		"macresreqtimer=0x%x macresreqtimer1=0x%x\n",
-		sssr_reg_info->pmu_regs.base_regs.pmuintmask0,
-		sssr_reg_info->pmu_regs.base_regs.pmuintmask1,
-		sssr_reg_info->pmu_regs.base_regs.resreqtimer,
-		sssr_reg_info->pmu_regs.base_regs.macresreqtimer,
-		sssr_reg_info->pmu_regs.base_regs.macresreqtimer1));
-	DHD_ERROR(("chipcommon_regs\n"));
-	DHD_ERROR(("intmask=0x%x powerctrl=0x%x clockcontrolstatus=0x%x powerctrl_mask=0x%x\n",
-		sssr_reg_info->chipcommon_regs.base_regs.intmask,
-		sssr_reg_info->chipcommon_regs.base_regs.powerctrl,
-		sssr_reg_info->chipcommon_regs.base_regs.clockcontrolstatus,
-		sssr_reg_info->chipcommon_regs.base_regs.powerctrl_mask));
-	DHD_ERROR(("arm_regs\n"));
-	DHD_ERROR(("clockcontrolstatus=0x%x clockcontrolstatus_val=0x%x"
-		" resetctrl=0x%x itopoobb=0x%x\n",
-		sssr_reg_info->arm_regs.base_regs.clockcontrolstatus,
-		sssr_reg_info->arm_regs.base_regs.clockcontrolstatus_val,
-		sssr_reg_info->arm_regs.wrapper_regs.resetctrl,
-		sssr_reg_info->arm_regs.wrapper_regs.itopoobb));
-	DHD_ERROR(("pcie_regs\n"));
-	DHD_ERROR(("ltrstate=0x%x clockcontrolstatus=0x%x "
-		"clockcontrolstatus_val=0x%x itopoobb=0x%x\n",
-		sssr_reg_info->pcie_regs.base_regs.ltrstate,
-		sssr_reg_info->pcie_regs.base_regs.clockcontrolstatus,
-		sssr_reg_info->pcie_regs.base_regs.clockcontrolstatus_val,
-		sssr_reg_info->pcie_regs.wrapper_regs.itopoobb));
-	DHD_ERROR(("vasip_regs\n"));
-	DHD_ERROR(("ioctrl=0x%x vasip_sr_addr=0x%x vasip_sr_size=0x%x\n",
-		sssr_reg_info->vasip_regs.wrapper_regs.ioctrl,
-		sssr_reg_info->vasip_regs.vasip_sr_addr,
-		sssr_reg_info->vasip_regs.vasip_sr_size));
-
-	for (i = 0; i < num_d11cores; i++) {
-		DHD_ERROR(("mac_regs core[%d]\n", i));
-		DHD_ERROR(("xmtaddress=0x%x xmtdata=0x%x clockcontrolstatus=0x%x "
-			"clockcontrolstatus_val=0x%x\n",
-			sssr_reg_info->mac_regs[i].base_regs.xmtaddress,
-			sssr_reg_info->mac_regs[i].base_regs.xmtdata,
-			sssr_reg_info->mac_regs[i].base_regs.clockcontrolstatus,
-			sssr_reg_info->mac_regs[i].base_regs.clockcontrolstatus_val));
-		DHD_ERROR(("resetctrl=0x%x itopoobb=0x%x ioctrl=0x%x\n",
-			sssr_reg_info->mac_regs[i].wrapper_regs.resetctrl,
-			sssr_reg_info->mac_regs[i].wrapper_regs.itopoobb,
-			sssr_reg_info->mac_regs[i].wrapper_regs.ioctrl));
-		for (j = 0; j < SSSR_D11_RESET_SEQ_STEPS; j++) {
-			DHD_ERROR(("ioctrl_resetseq_val[%d] 0x%x\n", j,
-				sssr_reg_info->mac_regs[i].wrapper_regs.ioctrl_resetseq_val[j]));
-		}
-		DHD_ERROR(("sr_size=0x%x\n", sssr_reg_info->mac_regs[i].sr_size));
-	}
-}
-
-#endif /* DHD_PCIE_REG_ACCESS */
-
 void
 dhd_dump_sssr_reg_info(dhd_pub_t *dhd)
 {
-#ifdef DHD_PCIE_REG_ACCESS
-	sssr_reg_info_cmn_t *sssr_reg_info_cmn = dhd->sssr_reg_info;
-	sssr_reg_info_v1_t *sssr_reg_info = (sssr_reg_info_v1_t *)&sssr_reg_info_cmn->rev1;
-
-	DHD_ERROR(("************** SSSR REG INFO start version:%d ****************\n",
-		sssr_reg_info->version));
-	switch (sssr_reg_info->version) {
-		case SSSR_REG_INFO_VER_3 :
-			dhd_dump_sssr_reg_info_v3(dhd);
-			break;
-		case SSSR_REG_INFO_VER_2 :
-			dhd_dump_sssr_reg_info_v2(dhd);
-			break;
-		default:
-			dhd_dump_sssr_reg_info_v1(dhd);
-			break;
-	}
-	DHD_ERROR(("************** SSSR REG INFO end ****************\n"));
-#endif /* DHD_PCIE_REG_ACCESS */
 }
 
 void dhdpcie_fill_sssr_reg_info(dhd_pub_t *dhd);
@@ -2106,7 +1928,6 @@ dhd_wl_ioctl(dhd_pub_t *dhd_pub, int ifidx, wl_ioctl_t *ioc, void *buf, int len)
 		DHD_BUS_BUSY_SET_IN_IOVAR(dhd_pub);
 		DHD_LINUX_GENERAL_UNLOCK(dhd_pub, flags);
 
-#ifdef OEM_ANDROID
 		/*
 		 * If system suspend started before ioctl, after getting d3 ack,
 		 * it will check for wakelock and as ioctl will hold wakelock,
@@ -2126,7 +1947,6 @@ dhd_wl_ioctl(dhd_pub_t *dhd_pub, int ifidx, wl_ioctl_t *ioc, void *buf, int len)
 					dhd_pub->dhd_bus_busy_state));
 			}
 		}
-#endif /* OEM_ANDROID */
 
 		DHD_LINUX_GENERAL_LOCK(dhd_pub, flags);
 		if (DHD_BUS_CHECK_SUSPEND_OR_ANY_SUSPEND_IN_PROGRESS(dhd_pub) ||
@@ -2279,7 +2099,6 @@ dhd_wl_ioctl(dhd_pub_t *dhd_pub, int ifidx, wl_ioctl_t *ioc, void *buf, int len)
 			}
 		}
 #endif /* DHD_LOG_DUMP */
-#if defined(OEM_ANDROID)
 		if (ret && dhd_pub->up) {
 			/* Send hang event only if dhd_open() was success */
 			dhd_os_check_hang(dhd_pub, ifidx, ret);
@@ -2290,7 +2109,6 @@ dhd_wl_ioctl(dhd_pub_t *dhd_pub, int ifidx, wl_ioctl_t *ioc, void *buf, int len)
 				"occurred before the interface does not"
 				" bring up\n", __FUNCTION__));
 		}
-#endif /* defined(OEM_ANDROID) */
 
 exit:
 		DHD_LINUX_GENERAL_LOCK(dhd_pub, flags);
@@ -3215,9 +3033,14 @@ dhd_doiovar(dhd_pub_t *dhd_pub, const bcm_iovar_t *vi, uint32 actionid, const ch
 			disable_proptx = 0;
 		}
 
-		if (int_val == TRUE)
+		if (int_val == TRUE) {
+			uint32 up;
 			bcmerror = dhd_wlfc_init(dhd_pub);
-		else
+			/* set WLC_UP to update wlfc credit */
+			if (dhd_wl_ioctl_cmd(dhd_pub, WLC_UP, &up, sizeof(uint32), TRUE, 0) < 0) {
+				DHD_ERROR(("%s: WLC_UP return err\n", __FUNCTION__));
+			}
+		} else
 			bcmerror = dhd_wlfc_deinit(dhd_pub);
 
 		break;
@@ -3804,7 +3627,7 @@ dhd_doiovar(dhd_pub_t *dhd_pub, const bcm_iovar_t *vi, uint32 actionid, const ch
 		break;
 	}
 #endif /* !NDIS && !BCM_ROUTER_DHD */
-#ifdef BCMDBG
+#if defined(DHD_MACDBG) && defined(BCMDBG)
 	case IOV_GVAL(IOV_MACDBG_PD11REGS):
 		bcmerror = dhd_macdbg_pd11regs(dhd_pub, params, plen, arg, len);
 		break;
@@ -3814,7 +3637,7 @@ dhd_doiovar(dhd_pub_t *dhd_pub, const bcm_iovar_t *vi, uint32 actionid, const ch
 	case IOV_GVAL(IOV_MACDBG_PSVMPMEMS):
 		bcmerror = dhd_macdbg_psvmpmems(dhd_pub, params, plen, arg, len);
 		break;
-#endif /* BCMDBG */
+#endif /* defined(DHD_MACDBG) && defined(BCMDBG) */
 
 #ifdef SHOW_LOGTRACE
 	case IOV_GVAL(IOV_DUMP_TRACE_LOG): {
@@ -4007,10 +3830,8 @@ dhd_doiovar(dhd_pub_t *dhd_pub, const bcm_iovar_t *vi, uint32 actionid, const ch
 			}
 			if (dhd_pub->dhd_induce_error == DHD_INDUCE_PCIE_LINK_DOWN) {
 				dhd_bus_set_linkdown(dhd_pub, TRUE);
-#ifdef OEM_ANDROID
 				dhd_pub->hang_reason = HANG_REASON_PCIE_LINK_DOWN_EP_DETECT;
 				dhd_os_send_hang_message(dhd_pub);
-#endif /* OEM_ANDROID */
 			}
 #endif /* BCMPCIE */
 		}
@@ -5355,17 +5176,11 @@ wl_show_host_event(dhd_pub_t *dhd_pub, wl_event_msg_t *event, void *event_data,
 			const wl_escan_result_v2_t *escan_result =
 				(wl_escan_result_v2_t *)event_data;
 			BCM_REFERENCE(escan_result);
-#ifdef OEM_ANDROID
 			/* Because WLC_E_ESCAN_RESULT event log are being print too many.
 			* So, DHD_EVENT() changes to be used DHD_TRACE() in HW4 platform.
 			*/
 			DHD_EVENT(("MACEVENT: %s %d, MAC %s, status %d \n",
 				event_name, event_type, eabuf, (int)status));
-#else
-			DHD_EVENT(("MACEVENT: %s %d, MAC %s, status %d sync-id %u\n",
-				event_name, event_type, eabuf,
-				(int)status, dtoh16(escan_result->sync_id)));
-#endif
 #ifdef REPORT_FATAL_TIMEOUTS
 			/* a 'partial' status means the escan is still in progress
 			* any other status implies the escan has either finished or aborted
@@ -5676,6 +5491,7 @@ dhd_parse_hck_common_sw_event(bcm_xtlv_t *wl_hc)
 }
 
 #endif /* PARSE_DONGLE_HOST_EVENT */
+#ifdef HCHK_COMMON_SW_EVENT
 #ifdef WL_CFGVENDOR_SEND_ALERT_EVENT
 static void
 dhd_send_error_alert_event(dhd_pub_t *dhdp, bcm_xtlv_t *wl_hc)
@@ -5703,6 +5519,7 @@ dhd_send_error_alert_event(dhd_pub_t *dhdp, bcm_xtlv_t *wl_hc)
 	dhd_os_send_alert_message(dhdp);
 }
 #endif /* WL_CFGVENDOR_SEND_ALERT_EVENT */
+#endif /* HCHK_COMMON_SW_EVENT */
 
 void
 dngl_host_event_process(dhd_pub_t *dhdp, bcm_dngl_event_t *event,
@@ -6171,12 +5988,12 @@ wl_process_host_event(dhd_pub_t *dhd_pub, int *ifidx, void *pktdata, uint pktlen
 	case WLC_E_PFN_SCAN_ALLGONE: /* share with WLC_E_PFN_BSSID_NET_LOST */
 	case WLC_E_PFN_NET_LOST:
 		break;
-#if defined(OEM_ANDROID) && defined(PNO_SUPPORT)
+#if defined(PNO_SUPPORT)
 	case WLC_E_PFN_BSSID_NET_FOUND:
 	case WLC_E_PFN_BEST_BATCHING:
 		dhd_pno_event_handler(dhd_pub, event, (void *)event_data);
 		break;
-#endif /* #if defined(OEM_ANDROID) && defined(PNO_SUPPORT) */
+#endif
 #if defined(RTT_SUPPORT)
 	case WLC_E_PROXD:
 #ifndef WL_CFG80211
@@ -6211,11 +6028,11 @@ wl_process_host_event(dhd_pub_t *dhd_pub, int *ifidx, void *pktdata, uint pktlen
 			event->ifname), (void*) event_data);
 		break;
 #endif /* BCM_ROUTER_DHD */
-#ifdef BCMDBG
+#if defined(DHD_MACDBG) && defined(BCMDBG)
 	case WLC_E_MACDBG:
 		dhd_macdbg_event_handler(dhd_pub, reason, event_data, datalen);
 		break;
-#endif /* BCMDBG */
+#endif /* defined(DHD_MACDBG) && defined(BCMDBG) */
 	case WLC_E_NATOE_NFCT:
 	break;
 	case WLC_E_SLOTTED_BSS_PEER_OP:
@@ -7749,7 +7566,6 @@ int dhd_keep_alive_onoff(dhd_pub_t *dhd)
 	return res;
 }
 #endif /* defined(KEEP_ALIVE) */
-#if defined(OEM_ANDROID)
 #define	CSCAN_TLV_TYPE_SSID_IE	'S'
 /*
  *  SSIDs list parsing from cscan tlv list
@@ -8008,7 +7824,6 @@ wl_iw_parse_channel_list(char** list_str, uint16* channel_list, int channel_num)
 	return num;
 }
 #endif
-#endif /* defined(OEM_ANDROID) */
 
 #if defined(BCM_ROUTER_DHD)
 static int traffic_mgmt_add_dwm_filter(dhd_pub_t *dhd,
@@ -8425,16 +8240,7 @@ dhd_apply_default_clm(dhd_pub_t *dhd, char *clm_path)
 	char iovbuf[WLC_IOCTL_SMLEN];
 	wl_country_t *cspec;
 
-	if (clm_path[0] != '\0') {
-		if (strlen(clm_path) > MOD_PARAM_PATHLEN) {
-			DHD_ERROR(("clm path exceeds max len\n"));
-			return BCME_ERROR;
-		}
-		clm_blob_path = clm_path;
-		DHD_TRACE(("clm path from module param:%s\n", clm_path));
-	} else {
-		clm_blob_path = VENDOR_PATH CONFIG_BCMDHD_CLM_PATH;
-	}
+	clm_blob_path = clm_path;
 
 	/* If CLM blob file is found on the filesystem, download the file.
 	* After CLM file download or If the blob file is not present,
@@ -8444,6 +8250,7 @@ dhd_apply_default_clm(dhd_pub_t *dhd, char *clm_path)
 
 	imgbuf = dhd_os_open_image((char *)clm_blob_path);
 	if (imgbuf == NULL) {
+		DHD_ERROR(("%s: clm from path %s open fail\n", __func__, clm_path));
 		goto exit;
 	}
 
@@ -8588,20 +8395,11 @@ dhd_apply_default_clm(dhd_pub_t *dhd, char *clm_path)
 	ota_update_info_t *ota_info = &dhd->ota_update_info;
 #endif /* SUPPORT_OTA_UPDATE */
 
-	if (clm_path && clm_path[0] != '\0') {
-		if (strlen(clm_path) > MOD_PARAM_PATHLEN) {
-			DHD_ERROR(("clm path exceeds max len\n"));
-			return BCME_ERROR;
-		}
-		clm_blob_path = clm_path;
-		DHD_TRACE(("clm path from module param:%s\n", clm_path));
-	} else {
 #ifdef DHD_LINUX_STD_FW_API
-		clm_blob_path = DHD_CLM_NAME;
+	clm_blob_path = DHD_CLM_NAME;
 #else
-		clm_blob_path = VENDOR_PATH CONFIG_BCMDHD_CLM_PATH;
+	clm_blob_path = clm_path;
 #endif /* DHD_LINUX_STD_FW_API */
-	}
 
 	/* If CLM blob file is found on the filesystem, download the file.
 	 * After CLM file download or If the blob file is not present,
@@ -8660,7 +8458,7 @@ dhd_apply_default_clm(dhd_pub_t *dhd, char *clm_path)
 		}
 
 		/* Found blob file. Download the file */
-		DHD_TRACE(("clm file download from %s \n", clm_blob_path));
+		DHD_ERROR(("clm file download from %s \n", clm_blob_path));
 		err = dhd_download_blob(dhd, (unsigned char*)memblock, len, "clmload");
 		if (err) {
 			DHD_ERROR(("%s: CLM download failed err=%d\n", __FUNCTION__, err));
@@ -9595,7 +9393,7 @@ error:
 } /* dhd_parse_logstrs_file */
 
 #ifdef DHD_LINUX_STD_FW_API
-int dhd_parse_map_file(osl_t *osh, void *ptr, uint32 *ramstart, uint32 *rodata_start,
+int dhd_parse_map_file(osl_t *osh, const void *ptr, uint32 *ramstart, uint32 *rodata_start,
 		uint32 *rodata_end)
 {
 	char *raw_fmts =  NULL, *raw_fmts_loc = NULL;
@@ -9609,7 +9407,7 @@ int dhd_parse_map_file(osl_t *osh, void *ptr, uint32 *ramstart, uint32 *rodata_s
 	*ramstart = 0;
 	*rodata_start = 0;
 	*rodata_end = 0;
-	size = (uint32)(((struct firmware *)ptr)->size);
+	size = (uint32)(((const struct firmware *)ptr)->size);
 
 	/* Allocate 1 byte more than read_size to terminate it with NULL */
 	raw_fmts = MALLOCZ(osh, read_size + 1);
@@ -9627,7 +9425,7 @@ int dhd_parse_map_file(osl_t *osh, void *ptr, uint32 *ramstart, uint32 *rodata_s
 		}
 
 		error = memcpy_s(raw_fmts, read_size,
-			(((char *)((struct firmware *)ptr)->data) + offset), read_size);
+			(((const char *)((const struct firmware *)ptr)->data) + offset), read_size);
 		if (error) {
 			DHD_ERROR(("%s: failed to copy raw_fmts, err=%d\n",
 				__FUNCTION__, error));
@@ -11495,7 +11293,7 @@ dhd_ota_buf_clean(dhd_pub_t *dhdp)
 	return;
 }
 #endif /* SUPPORT_OTA_UPDATE */
-#if defined(OEM_ANDROID) && !defined(AP) && defined(WLP2P)
+#if !defined(AP) && defined(WLP2P)
 /* From Android JerryBean release, the concurrent mode is enabled by default and the firmware
  * name would be fw_bcmdhd.bin. So we need to determine whether P2P is enabled in the STA
  * firmware and accordingly enable concurrent mode (Apply P2P settings). SoftAP firmware
@@ -11552,7 +11350,7 @@ dhd_get_concurrent_capabilites(dhd_pub_t *dhd)
 	}
 	return 0;
 }
-#endif /* defined(OEM_ANDROID) && !defined(AP) && defined(WLP2P) */
+#endif
 
 #ifdef SUPPORT_AP_POWERSAVE
 int dhd_set_ap_powersave(dhd_pub_t *dhdp, int ifidx, int enable)

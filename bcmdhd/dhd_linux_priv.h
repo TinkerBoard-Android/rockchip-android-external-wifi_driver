@@ -79,7 +79,7 @@ typedef struct dhd_info {
 	wifi_adapter_info_t *adapter;			/* adapter information, interrupt, fw path etc. */
 	char fw_path[PATH_MAX];		/* path to firmware image */
 	char nv_path[PATH_MAX];		/* path to nvram vars file */
-	char clm_path[PATH_MAX];		/* path to clm vars file */
+	char clm_path[PATH_MAX];	/* path to CLM data */
 	char conf_path[PATH_MAX];	/* path to config vars file */
 	char sig_path[PATH_MAX];	/* path to rtecdc.sig file */
 #ifdef DHD_UCODE_DOWNLOAD
@@ -143,7 +143,6 @@ typedef struct dhd_info {
 	struct wakeup_source *wl_nanwake; /* NAN wakelock */
 #endif /* CONFIG_HAS_WAKELOCK */
 
-#if defined(OEM_ANDROID)
 	/* net_device interface lock, prevent race conditions among net_dev interface
 	 * calls and wifi_on or wifi_off
 	 */
@@ -152,7 +151,6 @@ typedef struct dhd_info {
 #if defined(APF)
 	struct mutex dhd_apf_mutex;
 #endif /* APF */
-#endif /* OEM_ANDROID */
 	spinlock_t wakelock_spinlock;
 	spinlock_t wakelock_evt_spinlock;
 	uint32 wakelock_counter;
@@ -528,7 +526,7 @@ extern uint fis_enab;
 #endif /* WAKELOCK_BACKPORT */
 
 #ifdef CONFIG_HAS_WAKELOCK
-#if ((LINUX_VERSION_CODE  >= KERNEL_VERSION(4, 19, 0)) || defined(WAKELOCK_BACKPORT))
+#if ((LINUX_VERSION_CODE  >= KERNEL_VERSION(5, 4, 0)) || defined(WAKELOCK_BACKPORT))
 #define dhd_wake_lock_init(wakeup_source, dev, name) \
 do { \
 	wakeup_source = wakeup_source_register(dev, name); \

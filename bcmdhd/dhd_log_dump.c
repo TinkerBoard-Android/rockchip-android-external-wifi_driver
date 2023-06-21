@@ -1239,7 +1239,7 @@ do_dhd_log_dump(dhd_pub_t *dhdp, log_dump_type_t *type)
 	fp = dhd_filp_open(dump_path, file_mode, 0664);
 	if (IS_ERR(fp) || (fp == NULL)) {
 		/* If android installed image, try '/data' directory */
-#if defined(CONFIG_X86) && defined(OEM_ANDROID)
+#if defined(CONFIG_X86)
 		DHD_ERROR(("%s: File open error on Installed android image, trying /data...\n",
 			__FUNCTION__));
 		snprintf(dump_path, sizeof(dump_path), "/data/" DHD_DEBUG_DUMP_TYPE);

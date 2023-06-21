@@ -40,9 +40,6 @@
 #ifdef WL_NAN
 #include <wl_cfgnan.h>
 #endif /* WL_NAN */
-#ifdef WL_BAM
-#include <wl_bam.h>
-#endif  /* WL_BAM */
 
 #ifdef SUPPORT_AP_RADIO_PWRSAVE
 #define RADIO_PWRSAVE_PPS               10
@@ -209,7 +206,7 @@ extern s32 wl_cfg80211_stop_ap(struct wiphy *wiphy, struct net_device *dev,
 	unsigned int link_id);
 #else
 extern s32 wl_cfg80211_stop_ap(struct wiphy *wiphy, struct net_device *dev);
-#endif /* CFG80211_BKPORT_MLO */
+#endif /* LINUX_VER >= 5.19.2 || CFG80211_BKPORT_MLO */
 extern s32 wl_cfg80211_change_beacon(struct wiphy *wiphy, struct net_device *dev,
 	struct cfg80211_beacon_data *info);
 #else

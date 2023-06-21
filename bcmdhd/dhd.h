@@ -506,19 +506,18 @@ enum dhd_op_flags {
 #endif /* DHD_DEBUG */
 
 /* Enable Flow ring pre-memory allocation by default for Android */
-#ifdef OEM_ANDROID
 #define FLOW_RING_PREALLOC
-#endif /* OEM_ANDROID */
+
+#ifndef CONFIG_BCMDHD_FW_PATH
+#define CONFIG_BCMDHD_FW_PATH  "/system/vendor/etc/wifi/fw_bcmdhd.bin"
+#endif /* CONFIG_BCMDHD_FW_PATH */
+
+#ifndef CONFIG_BCMDHD_NVRAM_PATH
+#define CONFIG_BCMDHD_NVRAM_PATH  "/system/vendor/etc/wifi/bcmdhd.cal"
+#endif /* CONFIG_BCMDHD_NVRAM_PATH */
 
 #ifndef CONFIG_BCMDHD_CLM_PATH
-#ifdef OEM_ANDROID
 #define CONFIG_BCMDHD_CLM_PATH "/etc/wifi/bcmdhd_clm.blob"
-#elif defined(LINUX) || defined(linux)
-#define CONFIG_BCMDHD_CLM_PATH "/var/run/bcmdhd_clm.blob"
-#else
-/* clm download will fail on empty path */
-#define CONFIG_BCMDHD_CLM_PATH ""
-#endif /* OEM_ANDROID */
 #endif /* CONFIG_BCMDHD_CLM_PATH */
 #define WL_CCODE_NULL_COUNTRY  "#n"
 
@@ -960,12 +959,10 @@ enum {
 #ifndef DHD_COMMON_DUMP_PATH
 #define DHD_COMMON_DUMP_PATH	"/data/misc/wifi/"
 #endif /* !DHD_COMMON_DUMP_PATH */
-#elif defined(OEM_ANDROID) && defined(__ARM_ARCH_7A__)
+#elif defined(__ARM_ARCH_7A__)
 #define DHD_COMMON_DUMP_PATH	"/data/vendor/wifi/"
-#elif defined(OEM_ANDROID) /* For Brix Live Image */
+#else
 #define DHD_COMMON_DUMP_PATH	"/installmedia/"
-#else /* Default */
-#define DHD_COMMON_DUMP_PATH	"/root/"
 #endif /* CUSTOMER_HW7_DEBUG */
 
 #define DHD_MEMDUMP_LONGSTR_LEN 180
@@ -1045,9 +1042,7 @@ typedef struct dhd_if_tx_status_latency {
 #define GDB_PROXY_STOP_MASK 1
 
 /* Enable Reserve STA flowrings only for Android */
-#if defined(OEM_ANDROID)
 #define DHD_LIMIT_MULTI_CLIENT_FLOWRINGS
-#endif /* OEM_ANDROID */
 
 typedef enum {
 	FW_UNLOADED = 0,
@@ -1301,10 +1296,8 @@ typedef struct dhd_pub {
 	int	op_mode;				/* STA, HostAPD, WFD, SoftAP */
 
 #if defined(LINUX) || defined(linux)
-#if defined(OEM_ANDROID)
 	struct mutex wl_start_stop_lock; /* lock/unlock for Android start/stop */
 	struct mutex wl_softap_lock;		 /* lock/unlock for any SoftAP/STA settings */
-#endif /* defined(OEM_ANDROID) */
 #endif /* defined (LINUX) || defined(linux) */
 
 #ifdef NDIS
@@ -2020,7 +2013,7 @@ int dhd_pno_clean(dhd_pub_t *dhd);
  *  Wake locks are an Android power management concept. They are used by applications and services
  *  to request CPU resources.
  */
-#if defined(linux) && defined(OEM_ANDROID)
+#if defined(linux)
 extern int dhd_os_wake_lock(dhd_pub_t *pub);
 extern int dhd_os_wake_unlock(dhd_pub_t *pub);
 extern int dhd_os_wake_lock_waive(dhd_pub_t *pub);
@@ -2053,23 +2046,17 @@ extern int dhd_set_1905_almac(dhd_pub_t *dhdp, uint8 ifidx, uint8* ea, bool mcas
 
 inline static void MUTEX_LOCK_SOFTAP_SET_INIT(dhd_pub_t * dhdp)
 {
-#if defined(OEM_ANDROID)
 	mutex_init(&dhdp->wl_softap_lock);
-#endif /* OEM_ANDROID */
 }
 
 inline static void MUTEX_LOCK_SOFTAP_SET(dhd_pub_t * dhdp)
 {
-#if defined(OEM_ANDROID)
 	mutex_lock(&dhdp->wl_softap_lock);
-#endif /* OEM_ANDROID */
 }
 
 inline static void MUTEX_UNLOCK_SOFTAP_SET(dhd_pub_t * dhdp)
 {
-#if defined(OEM_ANDROID)
 	mutex_unlock(&dhdp->wl_softap_lock);
-#endif /* OEM_ANDROID */
 }
 
 #ifdef DHD_DEBUG_WAKE_LOCK
@@ -2257,7 +2244,7 @@ inline static void MUTEX_UNLOCK_SOFTAP_SET(dhd_pub_t * dhdp)
 #define DHD_OS_WAKE_LOCK_INIT(dhd)
 #define DHD_OS_WAKE_LOCK_DESTROY(dhd)
 
-#endif /* #defined(linux) && defined(OEM_ANDROID) */
+#endif
 
 #ifdef BCMPCIE_OOB_HOST_WAKE
 #define OOB_WAKE_LOCK_TIMEOUT 500
@@ -2488,7 +2475,6 @@ extern void dhd_bus_wakeup_work(dhd_pub_t *dhdp);
 
 #define MAX_FEATURE_SET_CONCURRRENT_GROUPS  3
 
-#if defined(linux) || defined(LINUX) || defined(OEM_ANDROID)
 extern int dhd_dev_get_feature_set(struct net_device *dev);
 extern int dhd_dev_get_feature_set_matrix(struct net_device *dev, int num);
 extern int dhd_dev_cfg_rand_mac_oui(struct net_device *dev, uint8 *oui);
@@ -2504,7 +2490,6 @@ extern int dhd_dev_set_nodfs(struct net_device *dev, uint nodfs);
 extern int dhd_dev_ndo_cfg(struct net_device *dev, u8 enable);
 extern int dhd_dev_ndo_update_inet6addr(struct net_device * dev);
 #endif /* NDO_CONFIG_SUPPORT */
-#endif /* (linux) || (LINUX) || (OEM_ANDROID) */
 extern int dhd_set_rand_mac_oui(dhd_pub_t *dhd);
 #ifdef GSCAN_SUPPORT
 extern int dhd_dev_set_lazy_roam_cfg(struct net_device *dev,
@@ -2687,8 +2672,10 @@ void dhd_schedule_memdump(dhd_pub_t *dhdp, uint8 *buf, uint32 size);
 #endif /* DHD_FW_COREDUMP */
 
 #if defined(linux) || defined(LINUX)
+#ifdef DHD_LINUX_STD_FW_API
 int dhd_os_get_img_fwreq(const struct firmware **fw, char *file_path);
 void dhd_os_close_img_fwreq(const struct firmware *fw);
+#endif /* DHD_LINUX_STD_FW_API */
 #if defined(DHD_SSSR_DUMP)
 void dhd_write_sssr_dump(dhd_pub_t *dhdp, uint32 dump_mode);
 #endif /* DHD_SSSR_DUMP */
@@ -2848,9 +2835,7 @@ extern int dhd_wl_ioctl_set_intiovar(dhd_pub_t *dhd_pub, char *name, uint val,
 	int cmd, uint8 set, int ifidx);
 extern void dhd_common_init(osl_t *osh);
 
-#if defined(linux) || defined(LINUX) || defined(OEM_ANDROID)
 extern int dhd_do_driver_init(struct net_device *net);
-#endif
 extern int dhd_event_ifadd(struct dhd_info *dhd, struct wl_event_data_if *ifevent,
 	char *name, uint8 *mac);
 extern int dhd_event_ifdel(struct dhd_info *dhd, struct wl_event_data_if *ifevent,
@@ -3044,10 +3029,8 @@ typedef struct dmaxref_mem_map {
 	dhd_dma_buf_t *dstmem;
 } dmaxref_mem_map_t;
 
-#if defined(OEM_ANDROID)
 extern int wl_iw_iscan_set_scan_broadcast_prep(struct net_device *dev, uint flag);
 extern int wl_iw_send_priv_event(struct net_device *dev, char *flag);
-#endif /* defined(OEM_ANDROID) */
 
 #ifdef DHD_PCIE_NATIVE_RUNTIMEPM
 extern void dhd_flush_rx_tx_wq(dhd_pub_t *dhdp);
@@ -3196,11 +3179,9 @@ extern uint dhd_force_tx_queueing;
 #define CUSTOM_SUSPEND_BCN_LI_DTIM		DEFAULT_SUSPEND_BCN_LI_DTIM
 #endif
 
-#ifdef OEM_ANDROID
 #ifndef BCN_TIMEOUT_IN_SUSPEND
 #define BCN_TIMEOUT_IN_SUSPEND			6 /* bcn timeout value in suspend mode */
 #endif
-#endif /* OEM_ANDROID */
 
 #ifndef CUSTOM_RXF_PRIO_SETTING
 #define CUSTOM_RXF_PRIO_SETTING		MAX((CUSTOM_DPC_PRIO_SETTING - 1), 1)
@@ -3226,11 +3207,7 @@ extern uint dhd_force_tx_queueing;
 #endif /* DEFAULT_DHD_WATCHDOG_INTERVAL_MS */
 
 #if defined(DHD_DEBUG)
-#ifdef OEM_ANDROID
 #define DEFAULT_DHD_CONSOLE_INTERVAL_MS		0 /* android by default disable console msgs */
-#else
-#define DEFAULT_DHD_CONSOLE_INTERVAL_MS		250 /* msec */
-#endif /* OEM_ANDROID */
 
 #ifndef CUSTOM_DHD_CONSOLE_MS
 #define CUSTOM_DHD_CONSOLE_MS			DEFAULT_DHD_CONSOLE_INTERVAL_MS
@@ -3292,11 +3269,9 @@ extern uint dhd_force_tx_queueing;
 #define MAX_DTIM_ALLOWED_INTERVAL 600 /* max allowed total beacon interval for DTIM skip */
 #endif
 
-#ifdef OEM_ANDROID
 #ifndef MIN_DTIM_FOR_ROAM_THRES_EXTEND
 #define MIN_DTIM_FOR_ROAM_THRES_EXTEND	600 /* minimum dtim interval to extend roam threshold */
 #endif
-#endif /* OEM_ANDROID */
 
 #ifdef CONFIG_ROAM_RSSI_LIMIT
 extern int dhd_roam_rssi_limit_get(dhd_pub_t *dhd, int *lmt2g, int *lmt5g);
@@ -3851,8 +3826,13 @@ int dhd_apply_default_clm(dhd_pub_t *dhd, char *clm_path);
 #ifdef SHOW_LOGTRACE
 int dhd_parse_logstrs_file(osl_t *osh, char *raw_fmts, int logstrs_size,
 		dhd_event_log_t *event_log);
+#ifdef DHD_LINUX_STD_FW_API
+int dhd_parse_map_file(osl_t *osh, const void *ptr, uint32 *ramstart,
+		uint32 *rodata_start, uint32 *rodata_end);
+#else
 int dhd_parse_map_file(osl_t *osh, void *file, uint32 *ramstart,
 		uint32 *rodata_start, uint32 *rodata_end);
+#endif /* DHD_LINUX_STD_FW_API */
 #ifdef PCIE_FULL_DONGLE
 int dhd_event_logtrace_infobuf_pkt_process(dhd_pub_t *dhdp, void *pktbuf,
 		dhd_event_log_t *event_data);
@@ -3965,9 +3945,9 @@ extern void dhd_lb_stats_rxc_percpu_cnt_incr(dhd_pub_t *dhdp);
 #define DHD_LB_STATS_UPDATE_NAPI_HISTO(dhd, x) DHD_LB_STATS_NOOP
 #endif /* !DHD_LB_STATS */
 
-#ifdef BCMDBG
+#if defined(BCMDBG) && defined(DHD_MACDBG)
 extern void dhd_schedule_macdbg_dump(dhd_pub_t *dhdp);
-#endif /* BCMDBG */
+#endif /* BCMDBG && DHD_MACDBG */
 
 #ifdef DHD_SSSR_DUMP
 #ifdef DHD_SSSR_DUMP_BEFORE_SR
@@ -4459,9 +4439,6 @@ static inline uint32 next_larger_power2(uint32 num)
 
 extern struct dhd_if * dhd_get_ifp(dhd_pub_t *dhdp, uint32 ifidx);
 uint8 dhd_d11_slices_num_get(dhd_pub_t *dhdp);
-#ifdef WL_AUTO_QOS
-extern void dhd_wl_sock_qos_set_status(dhd_pub_t *dhdp, unsigned long on_off);
-#endif /* WL_AUTO_QOS */
 
 extern void *dhd_get_roam_evt(dhd_pub_t *dhdp);
 #if defined(DISABLE_HE_ENAB) || defined(CUSTOM_CONTROL_HE_ENAB)
@@ -4630,12 +4607,12 @@ static INLINE int dhd_kern_path(char *name, int flags, struct path *file_path)
 #define DHD_VFS_INODE(dir) d_inode(dir)
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0) */
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 13, 0)) && \
-	(RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(7, 6))
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 13, 0)) && (RHEL_RELEASE_CODE < \
+	RHEL_RELEASE_VERSION(7, 6))
 #define DHD_VFS_UNLINK(dir, file_path, c) vfs_unlink(DHD_VFS_INODE(dir), file_path.dentry)
 #elif (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 12, 0))
 #define DHD_VFS_UNLINK(dir, file_path, c)  \
-	vfs_unlink(file_path.mnt->mnt_userns, DHD_VFS_INODE(dir), file_path.dentry, c)
+	vfs_unlink(mnt_user_ns(file_path.mnt), DHD_VFS_INODE(dir), file_path.dentry, c)
 #else
 #define DHD_VFS_UNLINK(dir, file_path, c) vfs_unlink(DHD_VFS_INODE(dir), file_path.dentry, c)
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(3, 13, 0) */
@@ -4673,7 +4650,7 @@ void dhd_dump_wake_status(dhd_pub_t *dhdp, wake_counts_t *wcp, struct ether_head
 #ifdef SUPPORT_OTA_UPDATE
 void dhd_ota_buf_clean(dhd_pub_t *dhdp);
 #endif /* SUPPORT_OTA_UPDATE */
-#if defined(OEM_ANDROID) && !defined(AP) && defined(WLP2P)
+#if !defined(AP) && defined(WLP2P)
 extern uint32 dhd_get_concurrent_capabilites(dhd_pub_t *dhd);
 #endif
 #ifdef DHD_CUSTOM_CONFIG_RTS_IN_SUSPEND

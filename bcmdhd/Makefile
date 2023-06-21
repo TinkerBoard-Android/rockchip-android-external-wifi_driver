@@ -33,15 +33,15 @@ CONFIG_BCMDHD_OOB := y
 CONFIG_BCMDHD_PROPTXSTATUS := y
 CONFIG_BCMDHD_AG := y
 CONFIG_DHD_USE_STATIC_BUF := y
-#CONFIG_BCMDHD_STATIC_BUF_IN_DHD := y
-CONFIG_BCMDHD_ANDROID_VERSION := 13
+CONFIG_BCMDHD_STATIC_BUF_IN_DHD := y
+CONFIG_BCMDHD_ANDROID_VERSION := 14
 CONFIG_BCMDHD_AUTO_SELECT := y
 CONFIG_BCMDHD_DEBUG := y
 #CONFIG_BCMDHD_RECONNECT := y
 #CONFIG_BCMDHD_TIMESTAMP := y
 #CONFIG_BCMDHD_WAPI := y
 #CONFIG_BCMDHD_RANDOM_MAC := y
-CONFIG_BCMDHD_REQUEST_FW := y
+#CONFIG_BCMDHD_REQUEST_FW := y
 #CONFIG_BCMDHD_FW_SIGNATURE := y
 #CONFIG_BCMDHD_DWDS := y
 CONFIG_BCMDHD_TPUT := y
@@ -52,11 +52,8 @@ CONFIG_BCMDHD_TPUT := y
 CONFIG_MACH_PLATFORM := y
 #CONFIG_BCMDHD_DTS := y
 
-DHDCFLAGS = -Wall -Wstrict-prototypes -Wno-date-time                      \
-	-Wno-uninitialized -Wno-implicit-function-declaration               \
-	-Wno-implicit-fallthrough -Wno-declaration-after-statement            \
-	-Wno-fortify-source -Wno-unused-but-set-variable                      \
-	-Wno-vla -Wno-vla-extension -Wno-pointer-bool-conversion              \
+DHDCFLAGS = -Wall -Wstrict-prototypes -Wno-date-time -Wno-strict-prototypes   \
+	-Wno-uninitialized -Wno-unused-but-set-variable			      \
 	-Dlinux -DLINUX -DBCMDRIVER -DBCMUTILS_ERR_CODES                      \
 	-DBCMDONGLEHOST -DBCMDMA32 -DBCMFILEIMAGE                             \
 	-DDHDTHREAD -DDHD_DEBUG -DSHOW_EVENTS -DGET_OTP_MAC_ENABLE            \
@@ -120,7 +117,6 @@ ifneq ($(CONFIG_CFG80211),)
 	DHDCFLAGS += -DCONNECT_INFO_WAR -DWL_ROAM_WAR
 	DHDCFLAGS += -DVNDR_IE_WAR
 	DHDCFLAGS += -DRESTART_AP_WAR -DRXF0OVFL_REINIT_WAR
-	DHDCFLAGS += -DWL_SCHED_SCAN
 endif
 
 #BCMDHD_SDIO
@@ -248,14 +244,15 @@ ifneq ($(CONFIG_BCMDHD_ANDROID_VERSION),)
 	DHDCFLAGS += -DANDROID_BKPORT
 ifneq ($(CONFIG_CFG80211),)
 	DHDCFLAGS += -DPNO_SUPPORT
-	DHDCFLAGS += -DGSCAN_SUPPORT -DRTT_SUPPORT -DLINKSTAT_SUPPORT
+	DHDCFLAGS += -DGSCAN_SUPPORT -DRTT_SUPPORT
+	DHDCFLAGS += -DLINKSTAT_SUPPORT -DLINKSTAT_EXT_SUPPORT
 	DHDCFLAGS += -DCUSTOM_COUNTRY_CODE -DDHD_GET_VALID_CHANNELS
 	DHDCFLAGS += -DDEBUGABILITY -DDBG_PKT_MON
 	DHDCFLAGS += -DDHD_LOG_DUMP -DDHD_FW_COREDUMP
-	DHDCFLAGS += -DWL_P2P_RAND
 	DHDCFLAGS += -DAPF -DNDO_CONFIG_SUPPORT -DRSSI_MONITOR_SUPPORT
 	DHDCFLAGS += -DDHD_WAKE_STATUS
 	DHDCFLAGS += -DWL_SOFTAP_ACS
+	DHDCFLAGS += -DWL_LATENCY_MODE
 	DHDOFILES += dhd_rtt.o
 	DHDOFILES += dhd_log_dump.o
 endif
@@ -426,6 +423,7 @@ ifeq ($(CONFIG_BCMDHD_REQUEST_FW),y)
 	DHDCFLAGS += -DDHD_FW_NAME="\"fw_bcmdhd.bin\""
 	DHDCFLAGS += -DDHD_NVRAM_NAME="\"nvram.txt\""
 	DHDCFLAGS += -DDHD_CLM_NAME="\"clm_bcmdhd.blob\""
+	DHDCFLAGS += -DDHD_CONFIG_NAME="\"config.txt\""
 else
 	DHDCFLAGS += -DDHD_SUPPORT_VFS_CALL
 ifeq ($(CONFIG_BCMDHD_FW_PATH),)
@@ -433,6 +431,7 @@ ifeq ($(CONFIG_BCMDHD_FW_PATH),)
 	DHDCFLAGS += -DCONFIG_BCMDHD_NVRAM_PATH="\"/vendor/etc/firmware/nvram.txt\""
 	DHDCFLAGS += -DCONFIG_BCMDHD_CLM_PATH="\"/vendor/etc/firmware/clm_bcmdhd.blob\""
 endif
+	DHDCFLAGS += -DCONFIG_BCMDHD_CONFIG_PATH="\"/vendor/etc/firmware/config.txt\""
 endif
 
 ifeq ($(CONFIG_BCMDHD_FW_SIGNATURE),y)
@@ -470,7 +469,6 @@ BCMDHD_ROOT = $(src)
 EXTRA_CFLAGS = $(DHDCFLAGS)
 EXTRA_CFLAGS += -DDHD_COMPILED=\"$(BCMDHD_ROOT)\"
 EXTRA_CFLAGS += -I$(BCMDHD_ROOT)/include/ -I$(BCMDHD_ROOT)/
-EXTRA_CFLAGS += $(call cc-disable-warning, unused-but-set-variable)
 ifeq ($(CONFIG_AP6XXX),m)
 EXTRA_LDFLAGS += --strip-debug
 endif

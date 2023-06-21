@@ -12,13 +12,6 @@
 #include <linux/rfkill-wlan.h>
 #endif
 
-#if defined(BUS_POWER_RESTORE) && defined(BCMSDIO)
-#include <linux/mmc/core.h>
-#include <linux/mmc/card.h>
-#include <linux/mmc/host.h>
-#include <linux/mmc/sdio_func.h>
-#endif /* defined(BUS_POWER_RESTORE) && defined(BCMSDIO) */
-
 #ifdef CONFIG_DHD_USE_STATIC_BUF
 #if defined(BCMDHD_MDRIVER) && !defined(DHD_STATIC_IN_DRIVER)
 extern void *dhd_wlan_mem_prealloc(uint bus_type, int index,

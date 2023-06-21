@@ -440,7 +440,6 @@ get_customized_country_code(void *adapter, char *country_iso_code,
 get_customized_country_code(void *adapter, char *country_iso_code, wl_country_t *cspec)
 #endif /* CUSTOM_COUNTRY_CODE */
 {
-#if defined(OEM_ANDROID)
 #if (defined(CUSTOMER_HW) || defined(CUSTOMER_HW2)) && (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39))
 
 	struct cntry_locales_custom *cloc_ptr;
@@ -486,5 +485,4 @@ get_customized_country_code(void *adapter, char *country_iso_code, wl_country_t 
 #endif /* (defined(CUSTOMER_HW2) || defined(BOARD_HIKEY)) &&
 	* (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36))
 	*/
-#endif /* OEM_ANDROID */
 }

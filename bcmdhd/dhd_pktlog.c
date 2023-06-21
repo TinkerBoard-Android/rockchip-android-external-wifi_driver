@@ -1452,7 +1452,7 @@ dhd_pktlog_dump_write(dhd_pub_t *dhdp, void *file, const void *user_buf, uint32 
 		bytes_user_data = snprintf(buf, sizeof(buf), "%s:%s:%02d\n",
 				DHD_PKTLOG_FATE_INFO_FORMAT,
 				(report_ptr->tx_fate ? "Failure" : "Succeed"),
-				(report_ptr->tx_fate & !(TX_PKT_FATE_DRV_WAIT_UPDATE)));
+				(report_ptr->tx_fate & ~(TX_PKT_FATE_DRV_WAIT_UPDATE)));
 		write_frame_len = frame_len + bytes_user_data;
 		frame_len = (uint32)min(frame_len, DHD_PKT_LOGGING_DBGRING_MAX_SIZE);
 		captured_frame_len = frame_len + bytes_user_data;

@@ -31,9 +31,6 @@
 #include <dhd_dbg.h>
 #include <dhd_linux_priv.h>
 #include <dhd_proto.h>
-#if defined(WL_BAM)
-#include <wl_bam.h>
-#endif	/* WL_BAM */
 #ifdef PWRSTATS_SYSFS
 #include <wldev_common.h>
 #endif /* PWRSTATS_SYSFS */
@@ -639,8 +636,8 @@ show_pwrstats_path(struct dhd_info *dev, char *buf)
 
 			curr_time = OSL_LOCALTIME_NS();
 			if (curr_time >= last_suspend_end_time) {
-				estimated_pm_dur =
-					(curr_time - last_suspend_end_time) / NSEC_PER_USEC;
+				estimated_pm_dur = DIV_U64_BY_U32(
+					(curr_time - last_suspend_end_time), NSEC_PER_USEC);
 				estimated_pm_dur += laststats.pm_dur;
 
 				update_pwrstats_cum(&accumstats.pm_dur, &laststats.pm_dur,
@@ -970,13 +967,9 @@ static struct dhd_attr dhd_attr_macaddr =
  */
 
 #ifdef CONFIG_X86
-#if defined(OEM_ANDROID)
 #define MEMDUMPINFO_LIVE PLATFORM_PATH".memdump.info"
 #define MEMDUMPINFO_INST "/data/.memdump.info"
 #define MEMDUMPINFO MEMDUMPINFO_LIVE
-#else /* FC19 and Others */
-#define MEMDUMPINFO PLATFORM_PATH".memdump.info"
-#endif /* OEM_ANDROID */
 #else /* For non x86 platforms */
 #define MEMDUMPINFO PLATFORM_PATH".memdump.info"
 #endif /* CONFIG_X86 */
@@ -994,7 +987,7 @@ get_mem_val_from_file(void)
 	fp = dhd_filp_open(filepath, O_RDONLY, 0);
 	if (IS_ERR(fp) || (fp == NULL)) {
 		DHD_ERROR(("%s: File [%s] doesn't exist\n", __FUNCTION__, filepath));
-#if defined(CONFIG_X86) && defined(OEM_ANDROID)
+#if defined(CONFIG_X86)
 		/* Check if it is Live Brix Image */
 		if (strcmp(filepath, MEMDUMPINFO_LIVE) != 0) {
 			goto done;
@@ -1611,87 +1604,6 @@ static struct dhd_attr dhd_attr_proptx =
 #endif /* PROP_TXSTATUS */
 #endif /* USE_WFA_CERT_CONF */
 #endif /* DHD_EXPORT_CNTL_FILE */
-
-#if defined(WL_BAM)
-#define BAD_AP_MAC_ADDR_ELEMENT_NUM	6
-#define MACF_READ	"%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx"
-wl_bad_ap_mngr_t *g_bad_ap_mngr = NULL;
-
-static ssize_t
-show_adps_bam_list(struct dhd_info *dev, char *buf)
-{
-	int offset = 0;
-	ssize_t ret = 0;
-
-	wl_bad_ap_info_t *bad_ap;
-	wl_bad_ap_info_entry_t *entry;
-
-	if (g_bad_ap_mngr == NULL)
-		return ret;
-
-	GCC_DIAGNOSTIC_PUSH_SUPPRESS_CAST();
-	list_for_each_entry(entry, &g_bad_ap_mngr->list, list) {
-		bad_ap = &entry->bad_ap;
-
-		ret = scnprintf(buf + offset, PAGE_SIZE - 1, MACF"\n",
-			bad_ap->bssid.octet[0], bad_ap->bssid.octet[1],
-			bad_ap->bssid.octet[2], bad_ap->bssid.octet[3],
-			bad_ap->bssid.octet[4], bad_ap->bssid.octet[5]);
-
-		offset += ret;
-	}
-	GCC_DIAGNOSTIC_POP();
-
-	return offset;
-}
-
-static ssize_t
-store_adps_bam_list(struct dhd_info *dev, const char *buf, size_t count)
-{
-	int ret;
-	size_t len;
-	int offset;
-	char tmp[128];
-	wl_bad_ap_info_t bad_ap;
-
-	if (g_bad_ap_mngr == NULL)
-		return count;
-
-	len = count;
-	offset = 0;
-	do {
-		ret = sscanf(buf + offset, MACF_READ"\n",
-			&bad_ap.bssid.octet[0], &bad_ap.bssid.octet[1],
-			&bad_ap.bssid.octet[2], &bad_ap.bssid.octet[3],
-			&bad_ap.bssid.octet[4], &bad_ap.bssid.octet[5]);
-		if (ret != BAD_AP_MAC_ADDR_ELEMENT_NUM) {
-			DHD_ERROR(("%s - fail to parse bad ap data\n", __FUNCTION__));
-			return -EINVAL;
-		}
-
-		ret = wl_bad_ap_mngr_add(g_bad_ap_mngr, &bad_ap);
-		if (ret < 0)
-			return ret;
-
-		ret = snprintf(tmp, ARRAYSIZE(tmp), MACF"\n",
-			bad_ap.bssid.octet[0], bad_ap.bssid.octet[1],
-			bad_ap.bssid.octet[2], bad_ap.bssid.octet[3],
-			bad_ap.bssid.octet[4], bad_ap.bssid.octet[5]);
-		if (ret < 0) {
-			DHD_ERROR(("%s - fail to get bad ap data length(%d)\n", __FUNCTION__, ret));
-			return ret;
-		}
-
-		len -= ret;
-		offset += ret;
-	} while (len > 0);
-
-	return count;
-}
-
-static struct dhd_attr dhd_attr_adps_bam =
-	__ATTR(bad_ap_list, 0660, show_adps_bam_list, store_adps_bam_list);
-#endif	/* WL_BAM */
 
 uint32 report_hang_privcmd_err = 1;
 
@@ -2312,9 +2224,6 @@ static struct attribute *default_file_attrs[] = {
 #endif /* PROP_TXSTATUS */
 #endif /* USE_WFA_CERT_CONF */
 #endif /* DHD_EXPORT_CNTL_FILE */
-#if defined(WL_BAM)
-	&dhd_attr_adps_bam.attr,
-#endif	/* WL_BAM */
 #ifdef DHD_SEND_HANG_PRIVCMD_ERRORS
 	&dhd_attr_hang_privcmd_err.attr,
 #endif /* DHD_SEND_HANG_PRIVCMD_ERRORS */

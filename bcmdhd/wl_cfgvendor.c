@@ -83,9 +83,7 @@
 #include <wl_cfgnan.h>
 #endif /* WL_NAN */
 
-#ifdef OEM_ANDROID
 #include <wl_android.h>
-#endif /* OEM_ANDROID */
 
 #include <wl_cfgvendor.h>
 #ifdef PROP_TXSTATUS
@@ -571,7 +569,6 @@ wl_cfgvendor_set_country(struct wiphy *wiphy,
 		WL_ERR(("Set country failed ret:%d\n", err));
 		goto exit;
 	}
-#ifdef OEM_ANDROID
 #ifdef FCC_PWR_LIMIT_2G
 	err = wldev_iovar_setint(primary_ndev, "fccpwrlimit2g", FALSE);
 	if (err < 0) {
@@ -581,7 +578,6 @@ wl_cfgvendor_set_country(struct wiphy *wiphy,
 		WL_ERR(("fccpwrlimit2g is deactivated\n"));
 	}
 #endif /* FCC_PWR_LIMIT_2G */
-#endif /* OEM_ANDROID */
 exit:
 	return err;
 }
@@ -1861,6 +1857,47 @@ wl_cfgvendor_stop_hal(struct wiphy *wiphy,
 }
 #endif /* WL_CFG80211 */
 
+#ifdef WL_LATENCY_MODE
+static int
+wl_cfgvendor_set_latency_mode(struct wiphy *wiphy,
+	struct wireless_dev *wdev, const void *data, int len)
+{
+	int err = BCME_OK, rem, type;
+	u32 latency_mode;
+	const struct nlattr *iter;
+#ifdef SUPPORT_LATENCY_CRITICAL_DATA
+	bool enable;
+#endif /* SUPPORT_LATENCY_CRITICAL_DATA */
+
+	nla_for_each_attr(iter, data, len, rem) {
+		type = nla_type(iter);
+		switch (type) {
+			case ANDR_WIFI_ATTRIBUTE_LATENCY_MODE:
+				latency_mode = nla_get_u32(iter);
+				WL_DBG(("%s,Setting latency mode %u\n", __FUNCTION__,
+					latency_mode));
+#ifdef SUPPORT_LATENCY_CRITICAL_DATA
+				enable = latency_mode ? true : false;
+				err = wldev_iovar_setint(wdev->netdev,
+						"latency_critical_data", enable);
+				if (err != BCME_OK) {
+					WL_ERR(("failed to set latency_critical_data "
+						"enable %d, error = %d\n", enable, err));
+					/* Proceed with other optimizations possible */
+					err = BCME_OK;
+				}
+#endif /* SUPPORT_LATENCY_CRITICAL_DATA */
+				break;
+			default:
+				WL_ERR(("Unknown type: %d\n", type));
+				return err;
+		}
+	}
+
+	return err;
+}
+#endif /* WL_LATENCY_MODE */
+
 #ifdef RTT_SUPPORT
 bool wl_check_wdev(struct wireless_dev *wdev)
 {
@@ -3080,7 +3117,6 @@ wl_cfgvendor_priv_string_handler(struct wiphy *wiphy,
 	int maxmsglen = PAGE_SIZE - 0x100;
 	struct sk_buff *reply;
 
-#if defined(OEM_ANDROID)
 	dhd_pub_t *dhdp = wl_cfg80211_get_dhdp(wdev->netdev);
 
 	/* send to dongle only if we are not waiting for reload already */
@@ -3090,7 +3126,6 @@ wl_cfgvendor_priv_string_handler(struct wiphy *wiphy,
 		DHD_OS_WAKE_UNLOCK(dhdp);
 		return OSL_ERROR(BCME_DONGLE_DOWN);
 	}
-#endif /* (OEM_ANDROID) */
 
 	if (!data) {
 		WL_ERR(("data is not available\n"));
@@ -3447,8 +3482,7 @@ wl_cfgvendor_priv_bcm_handler(struct wiphy *wiphy,
 	struct net_device *net = NULL;
 	unsigned long int cmd_out = 0;
 
-#if (defined(WL_ANDROID_PRIV_CMD_OVER_NL80211) && defined(OEM_ANDROID)) || \
-	defined(WL_PRIV_CMD_OVER_NL80211)
+#if defined(WL_ANDROID_PRIV_CMD_OVER_NL80211) || defined(WL_PRIV_CMD_OVER_NL80211)
 	u32 cmd_buf_len = WL_DRIVER_PRIV_CMD_LEN;
 	char cmd_prefix[ANDROID_PRIV_CMD_IF_PREFIX_LEN + 1] = {0};
 	char *cmd_buf = NULL;
@@ -3473,8 +3507,7 @@ wl_cfgvendor_priv_bcm_handler(struct wiphy *wiphy,
 			goto exit;
 		}
 
-#if (defined(WL_ANDROID_PRIV_CMD_OVER_NL80211) && defined(OEM_ANDROID)) || \
-	defined(WL_PRIV_CMD_OVER_NL80211)
+#if defined(WL_ANDROID_PRIV_CMD_OVER_NL80211) || defined(WL_PRIV_CMD_OVER_NL80211)
 		if (type == BRCM_ATTR_DRIVER_CMD) {
 			if ((cmd_len >= WL_DRIVER_PRIV_CMD_LEN) ||
 				(cmd_len < ANDROID_PRIV_CMD_IF_PREFIX_LEN)) {
@@ -3530,7 +3563,6 @@ wl_cfgvendor_priv_bcm_handler(struct wiphy *wiphy,
 			cmd_buf[WL_DRIVER_PRIV_CMD_LEN - 1] = '\0';
 
 			WL_DBG(("vendor_command: %s len: %u \n", cmd_buf, cmd_buf_len));
-#ifdef OEM_ANDROID
 			bytes_written = wl_handle_private_cmd(net, cmd_buf, cmd_buf_len);
 			WL_DBG(("bytes_written: %d \n", bytes_written));
 			if (bytes_written == 0) {
@@ -3549,10 +3581,6 @@ wl_cfgvendor_priv_bcm_handler(struct wiphy *wiphy,
 				err = bytes_written;
 				goto exit;
 			}
-#else // OEM_ANDROID
-			err = bytes_written = -ENODEV;
-			goto exit;
-#endif // OEM_ANDROID
 			if ((data_len > 0) && (data_len < (cmd_buf_len - 1)) && cmd_buf) {
 				err =  wl_cfgvendor_send_cmd_reply(wiphy, cmd_buf, data_len);
 				if (unlikely(err)) {
@@ -3573,8 +3601,7 @@ wl_cfgvendor_priv_bcm_handler(struct wiphy *wiphy,
 
 exit:
 
-#if (defined(WL_ANDROID_PRIV_CMD_OVER_NL80211) && defined(OEM_ANDROID)) || \
-	defined(WL_PRIV_CMD_OVER_NL80211)
+#if defined(WL_ANDROID_PRIV_CMD_OVER_NL80211) || defined(WL_PRIV_CMD_OVER_NL80211)
 	if (cmd_buf) {
 		MFREE(cfg->osh, cmd_buf, cmd_buf_len);
 	}
@@ -10230,13 +10257,9 @@ wl_cfgvendor_thermal_mitigation(struct wiphy *wiphy,
 {
 	int err = BCME_ERROR, rem, type;
 	wifi_thermal_mode set_thermal_mode = WIFI_MITIGATION_NONE;
-	struct net_device *net = wdev->netdev;
-	struct bcm_cfg80211 *cfg = wl_get_cfg(net);
+	struct bcm_cfg80211 *cfg = wl_get_cfg(wdev_to_ndev(wdev));
 	const struct nlattr *iter;
-	wl_tvpm_req_t* tvpm_req = NULL;
-	size_t reqlen = sizeof(wl_tvpm_req_t) + sizeof(wl_tvpm_status_t);
-	s32 bssidx;
-	u32 duty_cycle = DUTY_CYCLE_NONE;
+	u32 duty_cycle = 100;
 	/* delay_win
 	 * Deadline (in milliseconds) to complete this request, value 0 implies apply
 	 * immediately. Deadline is basically a relaxed limit and allows
@@ -10263,7 +10286,7 @@ wl_cfgvendor_thermal_mitigation(struct wiphy *wiphy,
 	/* If thermal mode is already configured, no need to set it again */
 	if (cfg->thermal_mode == set_thermal_mode) {
 		WL_INFORM_MEM(("%s, thermal_mode %d is already set\n",
-				__FUNCTION__, set_thermal_mode));
+			__FUNCTION__, set_thermal_mode));
 		err = BCME_OK;
 		goto exit;
 	}
@@ -10293,41 +10316,14 @@ wl_cfgvendor_thermal_mitigation(struct wiphy *wiphy,
 	}
 	WL_DBG(("%s, duty_cycle %d thermal_mode %d\n", __FUNCTION__,
 			duty_cycle, set_thermal_mode));
-
-	tvpm_req = MALLOCZ(cfg->osh, reqlen);
-	if (tvpm_req == NULL) {
-		WL_ERR(("%s: can't allocate %ld bytes\n",
-				__FUNCTION__, reqlen));
-		err = -ENOMEM;
-		goto exit;
-	}
-	tvpm_req->version = TVPM_REQ_VERSION_1;
-	tvpm_req->length = reqlen;
-	tvpm_req->req_type = WL_TVPM_REQ_CLTM_INDEX;
-	*(int32*)(tvpm_req->value) = duty_cycle;
-
-	if ((bssidx = wl_get_bssidx_by_wdev(cfg, net->ieee80211_ptr)) < 0) {
-		WL_ERR(("Find index failed\n"));
-		err = BCME_ERROR;
-		goto exit;
-	}
-
-	err = wldev_iovar_setbuf_bsscfg(net, "tvpm",
-		tvpm_req, reqlen, cfg->ioctl_buf,
-		WLC_IOCTL_MEDLEN, bssidx, &cfg->ioctl_buf_sync);
+	err = wldev_iovar_setint(wdev_to_ndev(wdev), "dutycycle_thermal", duty_cycle);
 	if (unlikely(err)) {
-		WL_ERR(("tvpm duty cycle failed with error %d\n", err));
+		WL_ERR(("%s: Failed to set dutycycle - error (%d)\n", __FUNCTION__, err));
 		goto exit;
 	}
-
 	/* Cache the thermal mode sent by the hal */
 	cfg->thermal_mode = set_thermal_mode;
-
 exit:
-	if (tvpm_req) {
-		MFREE(cfg->osh, tvpm_req, reqlen);
-	}
-
 	return err;
 }
 #endif /* WL_THERMAL_MITIGATION */
@@ -10724,6 +10720,7 @@ wl_cfgvendor_twt_setup(struct wiphy *wiphy,
 				if (nla_get_u8(iter) == 1) {
 					val.desc.flow_flags |= WL_TWT_FLOW_FLAG_TRIGGER;
 				}
+				break;
 			case ANDR_TWT_ATTR_WAKE_DURATION:
 				/* Wake Duration */
 				val.desc.wake_dur = nla_get_u32(iter);
@@ -11808,7 +11805,6 @@ exit:
 }
 #endif /* SUPPORT_OTA_UPDATE */
 
-#ifdef OEM_ANDROID
 static int
 wl_cfgvendor_set_dtim_config(struct wiphy *wiphy,
 	struct wireless_dev *wdev, const void  *data, int len)
@@ -11842,7 +11838,6 @@ wl_cfgvendor_set_dtim_config(struct wiphy *wiphy,
 	return err;
 
 }
-#endif /* OEM_ANDROID */
 
 #ifdef WL_USABLE_CHAN
 static int wl_cfgvendor_get_usable_channels(struct wiphy *wiphy,
@@ -13467,6 +13462,21 @@ static struct wiphy_vendor_command wl_vendor_cmds [] = {
 #endif /* LINUX_VERSION >= 5.3 */
 	},
 #endif /* WL_CFG80211 */
+#ifdef WL_LATENCY_MODE
+	{
+		{
+			.vendor_id = OUI_GOOGLE,
+			.subcmd = WIFI_SUBCMD_SET_LATENCY_MODE
+		},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
+		.doit = wl_cfgvendor_set_latency_mode,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 3, 0))
+		.policy = andr_wifi_attr_policy,
+		.maxattr = ANDR_WIFI_ATTRIBUTE_MAX
+#endif /* LINUX_VERSION >= 5.3 */
+	},
+#endif /* WL_LATENCY_MODE */
+
 #ifdef WL_P2P_RAND
 	{
 		{
@@ -13713,7 +13723,6 @@ static struct wiphy_vendor_command wl_vendor_cmds [] = {
 #endif /* LINUX_VERSION >= 5.3 */
 	},
 #endif /* SUPPORT_OTA_UPDATE */
-#ifdef OEM_ANDROID
 	{
 		{
 			.vendor_id = OUI_GOOGLE,
@@ -13726,7 +13735,6 @@ static struct wiphy_vendor_command wl_vendor_cmds [] = {
 		.maxattr = ANDR_WIFI_ATTRIBUTE_MAX
 #endif /* LINUX_VERSION >= 5.3 */
 	},
-#endif /* OEM_ANDROID */
 #ifdef WL_USABLE_CHAN
 	{
 		{

@@ -62,9 +62,7 @@
 #include <linux/power/irq_history.h>
 #endif /* CONFIG_IRQ_HISTORY */
 
-#if defined(OEM_ANDROID)
 #include <linux/nl80211.h>
-#endif /* OEM_ANDROID */
 
 #ifdef WL_MONITOR
 #ifdef HOST_RADIOTAP_CONV
@@ -368,12 +366,12 @@ typedef struct dhd_tx_lb_pkttag_fr {
 #define ZERO_TYPE_STR	"00"
 #endif /* BLOCK_IPV6_PACKET */
 
-#if defined(OEM_ANDROID) && defined(SOFTAP)
+#if defined(SOFTAP)
 extern bool ap_cfg_running;
 extern bool ap_fw_loaded;
 #endif
 
-#if defined(OEM_ANDROID) && defined(BCMPCIE)
+#if defined(BCMPCIE)
 extern int dhd_get_suspend_bcn_li_dtim(dhd_pub_t *dhd, int *dtim_period, int *bcn_interval);
 #else
 extern int dhd_get_suspend_bcn_li_dtim(dhd_pub_t *dhd);

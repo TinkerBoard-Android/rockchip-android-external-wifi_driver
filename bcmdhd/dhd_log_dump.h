@@ -255,9 +255,7 @@ typedef struct dhd_debug_dump_ring_entry {
 /* below structure describe ring buffer. */
 struct dhd_log_dump_buf
 {
-#if defined(LINUX) || defined(linux) || defined(ANDROID) || defined(OEM_ANDROID)
 	spinlock_t lock;
-#endif
 	void *dhd_pub;
 	unsigned int enable;
 	unsigned int wraparound;

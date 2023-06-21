@@ -1,5 +1,0 @@
-# SPDX-License-Identifier: GPL-2.0
-config RTL8822ES
-	tristate "Realtek 8822E SDIO WiFi"
-	---help---
-	  Help message of RTL8822ES

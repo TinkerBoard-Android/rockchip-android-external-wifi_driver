@@ -41,7 +41,9 @@ do { \
 #ifndef BCMDBUS
 #define BCMDBUS
 #endif
-//#define DHD_USE_STATIC_MEMDUMP { : = y}
+#ifndef DHD_USE_STATIC_MEMDUMP
+#define DHD_USE_STATIC_MEMDUMP { : = y}
+#endif
 //#define BCMDHD_UNUSE_MEM
 #endif
 
@@ -646,7 +648,6 @@ dhd_static_buf_exit(void)
 }
 
 #ifndef DHD_STATIC_IN_DRIVER
-MODULE_LICENSE("GPL");
 module_init(dhd_static_buf_init);
 module_exit(dhd_static_buf_exit);
 #endif

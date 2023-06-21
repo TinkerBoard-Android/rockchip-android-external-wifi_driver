@@ -513,7 +513,8 @@ enum {
 	IOV_HCIREGS,
 	IOV_POWER,
 	IOV_CLOCK,
-	IOV_RXCHAIN
+	IOV_RXCHAIN,
+	IOV_DS
 };
 
 const bcm_iovar_t sdioh_iovars[] = {
@@ -533,6 +534,7 @@ const bcm_iovar_t sdioh_iovars[] = {
 #ifdef BCMDBG
 	{"sd_hciregs",	IOV_HCIREGS,	0, 0,	IOVT_BUFFER,	0 },
 #endif
+	{"sd_ds",	IOV_DS,		0, 0,	IOVT_UINT32,	0 },
 	{NULL, 0, 0, 0, 0, 0 }
 };
 
@@ -747,6 +749,65 @@ sdioh_iovar_op(sdioh_info_t *si, const char *name,
 		int_val = (int32)0;
 		bcopy(&int_val, arg, val_size);
 		break;
+
+	case IOV_GVAL(IOV_DS):
+	{
+		uint8 reg2;
+		int err;
+
+		sdio_claim_host(si->func[0]);
+		reg2 = sdio_readb(si->func[0], SDIOD_CCCR_DRIVER_STRENGTH, &err);
+		if (err) {
+			sd_err(("sd_ds error for read SDIOD_CCCR_DRIVER_STRENGTH : 0x%x\n", err));
+			bcmerror = BCME_SDIO_ERROR;
+		} else {
+			sd_trace(("sd_ds get cccr driver strength 0x%x\n", reg2));
+		}
+		sdio_release_host(si->func[0]);
+
+		int_val = (int)reg2;
+		bcopy(&int_val, arg, sizeof(int_val));
+		break;
+	}
+
+	case IOV_SVAL(IOV_DS):
+	{
+		uint8 reg2;
+		int err;
+
+		sdio_claim_host(si->func[0]);
+		reg2 = sdio_readb(si->func[0], SDIOD_CCCR_DRIVER_STRENGTH, &err);
+		if (err) {
+			sd_err(("sd_ds error for read SDIOD_CCCR_DRIVER_STRENGTH : 0x%x\n", err));
+			bcmerror = BCME_SDIO_ERROR;
+			sdio_release_host(si->func[0]);
+			break;
+		} else {
+			sd_trace(("sd_ds get cccr driver strength 0x%x\n", reg2));
+		}
+
+		if (int_val == 0) {
+			reg2 = ((reg2 & 0xf) | 0x0);
+		} else if (int_val == 1) {
+			reg2 = ((reg2 & 0xf) | 0x10);
+		} else if (int_val == 2) {
+			reg2 = ((reg2 & 0xf) | 0x20);
+		} else if (int_val == 3) {
+			reg2 = ((reg2 & 0xf) | 0x30);
+		} else {
+			bcmerror = BCME_BADARG;
+			sdio_release_host(si->func[0]);
+			break;
+		}
+
+		sdio_writeb(si->func[0], reg2, SDIOD_CCCR_DRIVER_STRENGTH, &err);
+		if (err) {
+			sd_err(("sd_ds error write SDIOD_CCCR_DRIVER_STRENGTH : 0x%x\n", err));
+		}
+		sdio_release_host(si->func[0]);
+		break;
+	}
+
 	default:
 		bcmerror = BCME_UNSUPPORTED;
 		break;
@@ -1703,7 +1764,7 @@ static int sdio_sw_reset(sdioh_info_t *sd)
 	struct mmc_card *card = sd->func[0]->card;
 	int err = 0;
 
-#if defined(MMC_SW_RESET) && LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+#if defined(MMC_SW_RESET) && LINUX_VERSION_CODE >= KERNEL_VERSION(4, 18, 0)
 	/* MMC_SW_RESET */
 	printf("%s: call mmc_sw_reset\n", __FUNCTION__);
 	sdio_claim_host(sd->func[0]);
@@ -1747,7 +1808,6 @@ LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32) && LINUX_VERSION_CODE < KERNEL_VE
 int
 sdioh_start(sdioh_info_t *sd, int stage)
 {
-#if defined(OEM_ANDROID)
 	int ret;
 
 	if (!sd) {
@@ -1833,7 +1893,6 @@ sdioh_start(sdioh_info_t *sd, int stage)
 	}
 	else
 		sd_err(("%s Failed\n", __FUNCTION__));
-#endif /* defined(OEM_ANDROID) */
 
 	return (0);
 }
@@ -1841,7 +1900,6 @@ sdioh_start(sdioh_info_t *sd, int stage)
 int
 sdioh_stop(sdioh_info_t *sd)
 {
-#if defined(OEM_ANDROID)
 	/* MSM7201A Android sdio stack has bug with interrupt
 		So internaly within SDIO stack they are polling
 		which cause issue when device is turned off. So
@@ -1868,7 +1926,6 @@ sdioh_stop(sdioh_info_t *sd)
 	}
 	else
 		sd_err(("%s Failed\n", __FUNCTION__));
-#endif /* defined(OEM_ANDROID) */
 #if !defined(MMC_SW_RESET) && !defined(MMC_HW_RESET)
 #if defined(BUS_POWER_RESTORE) && \
 LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32) && LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 0)

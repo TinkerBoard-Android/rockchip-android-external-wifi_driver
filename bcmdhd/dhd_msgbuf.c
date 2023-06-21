@@ -57,9 +57,6 @@
 #include <dhd_pcie.h>
 #include <dhd_config.h>
 #if defined(DHD_LB)
-#if !defined(LINUX) && !defined(linux) && !defined(OEM_ANDROID)
-#error "DHD Loadbalancing only supported on LINUX | OEM_ANDROID"
-#endif /* !LINUX && !OEM_ANDROID */
 #include <linux/cpu.h>
 #include <bcm_ring.h>
 #define DHD_LB_WORKQ_SZ			    (8192)
@@ -1354,8 +1351,6 @@ dhd_prot_d2h_sync_livelock(dhd_pub_t *dhd, uint32 msg_seqnum, msgbuf_ring_t *rin
 exit:
 	dhd_schedule_reset(dhd);
 
-#ifdef OEM_ANDROID
-#endif /* OEM_ANDROID */
 	dhd->livelock_occured = TRUE;
 }
 
@@ -3032,10 +3027,8 @@ dhd_pktid_map_save(dhd_pub_t *dhd, dhd_pktid_map_handle_t *handle, void *pkt,
 			/* collect core dump */
 			dhd->memdump_type = DUMP_TYPE_PKTID_INVALID;
 			dhd_bus_mem_dump(dhd);
-#ifdef OEM_ANDROID
 			dhd->hang_reason = HANG_REASON_PCIE_PKTID_ERROR;
 			dhd_os_send_hang_message(dhd);
-#endif /* OEM_ANDROID */
 
 		}
 #else
@@ -3119,10 +3112,8 @@ BCMFASTPATH(dhd_pktid_map_free)(dhd_pub_t *dhd, dhd_pktid_map_handle_t *handle, 
 			/* collect core dump */
 			dhd->memdump_type = DUMP_TYPE_PKTID_INVALID;
 			dhd_bus_mem_dump(dhd);
-#ifdef OEM_ANDROID
 			dhd->hang_reason = HANG_REASON_PCIE_PKTID_ERROR;
 			dhd_os_send_hang_message(dhd);
-#endif /* OEM_ANDROID */
 		}
 #else
 		ASSERT(0);
@@ -3148,10 +3139,8 @@ BCMFASTPATH(dhd_pktid_map_free)(dhd_pub_t *dhd, dhd_pktid_map_handle_t *handle, 
 			/* collect core dump */
 			dhd->memdump_type = DUMP_TYPE_PKTID_INVALID;
 			dhd_bus_mem_dump(dhd);
-#ifdef OEM_ANDROID
 			dhd->hang_reason = HANG_REASON_PCIE_PKTID_ERROR;
 			dhd_os_send_hang_message(dhd);
-#endif /* OEM_ANDROID */
 		}
 #else
 		ASSERT(0);
@@ -3183,10 +3172,8 @@ BCMFASTPATH(dhd_pktid_map_free)(dhd_pub_t *dhd, dhd_pktid_map_handle_t *handle, 
 			/* collect core dump */
 			dhd->memdump_type = DUMP_TYPE_PKTID_INVALID;
 			dhd_bus_mem_dump(dhd);
-#ifdef OEM_ANDROID
 			dhd->hang_reason = HANG_REASON_PCIE_PKTID_ERROR;
 			dhd_os_send_hang_message(dhd);
-#endif /* OEM_ANDROID */
 		}
 #else
 		ASSERT(0);
@@ -5076,20 +5063,6 @@ int dhd_sync_with_dongle(dhd_pub_t *dhd)
 
 	DHD_ERROR(("wlc_ver_major %d, wlc_ver_minor %d\n",
 		dhd->wlc_ver_major, dhd->wlc_ver_minor));
-#ifndef OEM_ANDROID
-	/* Get the device MAC address */
-	bzero(buf, sizeof(buf));
-	strlcpy(buf, "cur_etheraddr", sizeof(buf));
-	ret = dhd_wl_ioctl_cmd(dhd, WLC_GET_VAR, buf, sizeof(buf), FALSE, 0);
-	if (ret < 0) {
-		DHD_ERROR(("%s: GET iovar cur_etheraddr FAILED\n", __FUNCTION__));
-		goto done;
-	}
-	eacopy(&buf, &dhd->mac.octet);
-	if (dhd_msg_level & DHD_INFO_VAL) {
-		bcm_print_bytes("CUR_ETHERADDR ", (uchar *)buf, ETHER_ADDR_LEN);
-	}
-#endif /* OEM_ANDROID */
 
 #ifdef DHD_FW_COREDUMP
 	/* Check the memdump capability */
@@ -7596,10 +7569,8 @@ BCMFASTPATH(dhd_prot_txstatus_process)(dhd_pub_t *dhd, void *msg)
 			/* collect core dump */
 			dhd->memdump_type = DUMP_TYPE_PKTID_INVALID;
 			dhd_bus_mem_dump(dhd);
-#ifdef OEM_ANDROID
 			dhd->hang_reason = HANG_REASON_PCIE_PKTID_ERROR;
 			dhd_os_send_hang_message(dhd);
-#endif /* OEM_ANDROID */
 		}
 #else
 		ASSERT(0);
@@ -7640,12 +7611,12 @@ BCMFASTPATH(dhd_prot_txstatus_process)(dhd_pub_t *dhd, void *msg)
 			&status, NULL, NULL, TRUE, FALSE, TRUE);
 	}
 #endif /* DHD_PKT_LOGGING */
-#if defined(BCMPCIE) && (defined(LINUX) || defined(OEM_ANDROID))
+#if defined(BCMPCIE)
 	dhd_txcomplete(dhd, pkt, pkt_fate);
 #ifdef DHD_4WAYM4_FAIL_DISCONNECT
 	dhd_eap_txcomplete(dhd, pkt, pkt_fate, txstatus->cmn_hdr.if_id);
 #endif /* DHD_4WAYM4_FAIL_DISCONNECT */
-#endif /* BCMPCIE && (defined(LINUX) || defined(OEM_ANDROID)) */
+#endif
 
 #if DHD_DBG_SHOW_METADATA
 	if (dhd->prot->metadata_dbg &&
@@ -8821,21 +8792,6 @@ int dhd_prot_ioctl(dhd_pub_t *dhd, int ifidx, wl_ioctl_t * ioc, void * buf, int 
 	}
 
 	DHD_TRACE(("%s: Enter\n", __FUNCTION__));
-
-#ifdef DHD_PCIE_REG_ACCESS
-#ifdef BOARD_HIKEY
-#ifndef PCIE_LNK_SPEED_GEN1
-#define PCIE_LNK_SPEED_GEN1		0x1
-#endif
-	/* BUG_ON if link speed is GEN1 in Hikey for 4389B0 */
-	if (dhd->bus->sih->buscorerev == 72) {
-		if (dhd_get_pcie_linkspeed(dhd) == PCIE_LNK_SPEED_GEN1) {
-			DHD_ERROR(("%s: ******* Link Speed is GEN1 *********\n", __FUNCTION__));
-			BUG_ON(1);
-		}
-	}
-#endif /* BOARD_HIKEY */
-#endif /* DHD_PCIE_REG_ACCESS */
 
 	if (ioc->cmd == WLC_SET_PM) {
 #ifdef DHD_PM_CONTROL_FROM_FILE
@@ -13815,24 +13771,6 @@ int dhd_get_hscb_info(dhd_pub_t *dhd, void ** va, uint32 *len)
 
 	return BCME_OK;
 }
-
-#ifdef DHD_BUS_MEM_ACCESS
-int dhd_get_hscb_buff(dhd_pub_t *dhd, uint32 offset, uint32 length, void * buff)
-{
-	if (!dhd->hscb_enable) {
-		return BCME_UNSUPPORTED;
-	}
-
-	if (dhd->prot->host_scb_buf.va == NULL ||
-		((uint64)offset + length > (uint64)dhd->prot->host_scb_buf.len)) {
-		return BCME_BADADDR;
-	}
-
-	memcpy(buff, (char*)dhd->prot->host_scb_buf.va + offset, length);
-
-	return BCME_OK;
-}
-#endif /* DHD_BUS_MEM_ACCESS */
 
 static uint16
 dhd_d2h_cpl_ring_id(dhd_pub_t *dhd, msgbuf_ring_t *ring)

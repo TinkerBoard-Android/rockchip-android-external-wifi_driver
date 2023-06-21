@@ -74,9 +74,6 @@
 #ifdef WL_NAN
 #include <wl_cfgnan.h>
 #endif /* WL_NAN */
-#ifdef WL_BAM
-#include <wl_bam.h>
-#endif  /* WL_BAM */
 #include <dhd_dbg.h>
 
 struct wl_conf;
@@ -116,10 +113,8 @@ struct wl_ibss;
 #define WL_GCMP_SUPPORT
 #endif /* WL_GCMP_SUPPORT */
 
-#ifdef OEM_ANDROID
 /* mandatory for Android 11 */
 #define WL_ACT_FRAME_MAC_RAND
-#endif
 
 /* WPA3 R2 */
 #ifndef WL_SAE_FT
@@ -138,8 +133,8 @@ struct wl_ibss;
 #define WL_SAE
 #endif /* LINUX_VERSION_CODE >= (4, 17, 0) && !(WL_SAE) */
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0)) && !defined(WL_DISABLE_SCAN_TYPE) && \
-	!defined(WL_SCAN_TYPE)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0)) && !defined(WL_DISABLE_SCAN_TYPE) \
+	&& !defined(WL_SCAN_TYPE)
 #define WL_SCAN_TYPE
 #endif /* WL_SCAN_TYPE */
 
@@ -156,10 +151,8 @@ struct wl_ibss;
 #define WL_SELF_MANAGED_REGDOM
 #endif /* KERNEL >= 4.0 */
 
-#ifdef OEM_ANDROID
 /* mandatory for Android 11 */
 #define WL_ACT_FRAME_MAC_RAND
-#endif
 
 #if defined(WL_6G_BAND) && !defined(WL_DISABLE_SOFTAP_6G)
 /* Unless exlicitly disabled, enable softap 6G when 6G band support is present */
@@ -425,7 +418,6 @@ extern char *dhd_log_dump_get_timestamp(void);
 #undef WLAN_AKM_SUITE_WAPI_CERT
 #define WLAN_AKM_SUITE_WAPI_CERT		0x000FAC14
 #else
-#ifdef OEM_ANDROID
 #undef NL80211_WAPI_VERSION_1
 #define NL80211_WAPI_VERSION_1		0
 
@@ -436,17 +428,6 @@ extern char *dhd_log_dump_get_timestamp(void);
 #define WLAN_AKM_SUITE_WAPI_CERT	0x000FACFF /* WAPI */
 
 #define IS_WAPI_VER(version) (version == NL80211_WAPI_VERSION_1)
-#else
-#undef WLAN_AKM_SUITE_WAPI_PSK
-#define WLAN_AKM_SUITE_WAPI_PSK         0x000FAC04
-
-#undef WLAN_AKM_SUITE_WAPI_CERT
-#define WLAN_AKM_SUITE_WAPI_CERT        0x000FAC12
-
-#undef NL80211_WAPI_VERSION_1
-#define NL80211_WAPI_VERSION_1			1 << 2
-#define IS_WAPI_VER(version) (version & NL80211_WAPI_VERSION_1)
-#endif /* OEM_ANDROID */
 #endif /* CFG80211_WAPI_BKPORT */
 #endif /* BCMWAPI_WPI */
 
@@ -2115,10 +2096,8 @@ struct bcm_cfg80211 {
 #endif /* WL_HOST_BAND_MGMT */
 	bool scan_suppressed;
 
-#ifdef OEM_ANDROID
 	timer_list_compat_t scan_supp_timer;
 	struct work_struct wlan_work;
-#endif /* OEM_ANDROID */
 
 	struct mutex event_sync;	/* maily for up/down synchronization */
 	bool disable_roam_event;
@@ -2126,13 +2105,8 @@ struct bcm_cfg80211 {
 	struct delayed_work recovery_work;
 	u32 recovery_state;
 
-#ifdef OEM_ANDROID
 	struct workqueue_struct *event_workq;   /* workqueue for event */
-#endif /* OEM_ANDROID */
 
-#ifndef OEM_ANDROID
-	bool event_workq_init;
-#endif /* OEM_ANDROID */
 	struct work_struct event_work;		/* work item for event */
 	struct mutex pm_sync;	/* mainly for pm work synchronization */
 
@@ -2221,9 +2195,6 @@ struct bcm_cfg80211 {
 	spinlock_t wps_sync;	/* to protect wps states (and others if needed) */
 #endif /* WL_WPS_SYNC */
 	struct wl_fils_info fils_info;
-#ifdef WL_BAM
-	wl_bad_ap_mngr_t bad_ap_mngr;
-#endif  /* WL_BAM */
 
 	uint8 scanmac_enabled;
 	bool scanmac_config;
@@ -3312,12 +3283,10 @@ extern s32 wl_cfg80211_increase_p2p_bw(struct net_device *net, char* buf, int le
 extern s32 wl_cfg80211_set_p2p_resp_ap_chn(struct net_device *net, s32 enable);
 #endif /* P2PLISTEN_AP_SAMECHN */
 
-#if defined(OEM_ANDROID)
 /* btcoex functions */
 void* wl_cfg80211_btcoex_init(struct net_device *ndev);
 void wl_cfg80211_btcoex_deinit(void);
 void wl_cfg80211_btcoex_kill_handler(void);
-#endif /* defined(OEM_ANDROID) */
 
 extern chanspec_t wl_chspec_from_legacy(chanspec_t legacy_chspec);
 extern chanspec_t wl_chspec_driver_to_host(chanspec_t chanspec);
@@ -3370,7 +3339,7 @@ extern void wl_stop_wait_next_action_frame(struct bcm_cfg80211 *cfg, struct net_
 extern s32 wl_cfg80211_set_band(struct net_device *ndev, int band);
 #endif /* WL_HOST_BAND_MGMT */
 
-#if defined(OEM_ANDROID) && defined(DHCP_SCAN_SUPPRESS)
+#if defined(DHCP_SCAN_SUPPRESS)
 extern int wl_cfg80211_scan_suppress(struct net_device *dev, int suppress);
 #endif /* OEM_ANDROID */
 
@@ -3593,10 +3562,6 @@ extern int wl_cfg80211_stop_mkeep_alive(struct net_device *ndev, struct bcm_cfg8
 extern s32 wl_cfg80211_handle_macaddr_change(struct net_device *dev, u8 *macaddr);
 extern int wl_cfg80211_handle_hang_event(struct net_device *ndev,
 	uint16 hang_reason, uint32 memdump_type);
-#ifndef OEM_ANDROID
-extern s32 wl_cfg80211_resume(struct bcm_cfg80211 *cfg);
-extern s32 wl_cfg80211_suspend(struct bcm_cfg80211 *cfg);
-#endif /* !OEM_ANDROID */
 bool wl_cfg80211_is_dpp_frame(void *frame, u32 frame_len);
 const char *get_dpp_pa_ftype(enum wl_dpp_ftype ftype);
 bool wl_cfg80211_is_dpp_gas_action(void *frame, u32 frame_len);

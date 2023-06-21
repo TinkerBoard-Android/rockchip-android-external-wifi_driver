@@ -60,9 +60,7 @@
 #include <wl_cfgvif.h>
 #include <bcmdevs.h>
 
-#ifdef OEM_ANDROID
 #include <wl_android.h>
-#endif
 
 #if defined(BCMDONGLEHOST)
 #include <dngl_stats.h>
@@ -2575,11 +2573,11 @@ wl_cfgscan_handle_scanbusy(struct bcm_cfg80211 *cfg, struct net_device *ndev, s3
 #endif /* DHD_DEBUG && DHD_FW_COREDUMP */
 			dhdp->hang_reason = HANG_REASON_SCAN_BUSY;
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) && defined(OEM_ANDROID)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27))
 			dhd_os_send_hang_message(dhdp);
-#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) && defined(OEM_ANDROID) */
+#endif
 
-#if !((LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) && defined(OEM_ANDROID))
+#if !(LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27))
 			WL_ERR(("%s: HANG event is unsupported\n", __FUNCTION__));
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27) && OEM_ANDROID */
 #endif /* BCMDONGLEHOST */
@@ -2833,7 +2831,7 @@ __wl_cfg80211_scan(struct wiphy *wiphy, struct net_device *ndev,
 
 	WL_TRACE_HW4(("START SCAN\n"));
 
-#if defined(BCMDONGLEHOST) && defined(OEM_ANDROID)
+#if defined(BCMDONGLEHOST)
 	DHD_OS_SCAN_WAKE_LOCK_TIMEOUT((dhd_pub_t *)(cfg->pub),
 		wl_get_scan_timeout_val(cfg) + SCAN_WAKE_LOCK_MARGIN_MS);
 	DHD_DISABLE_RUNTIME_PM((dhd_pub_t *)(cfg->pub));
@@ -2929,7 +2927,7 @@ scan_out:
 		if (scanbusy_err == BCME_NOTREADY) {
 			/* In case of bus failures avoid ioctl calls */
 
-#if defined(BCMDONGLEHOST) && defined(OEM_ANDROID)
+#if defined(BCMDONGLEHOST)
 			DHD_OS_SCAN_WAKE_UNLOCK((dhd_pub_t *)(cfg->pub));
 			DHD_ENABLE_RUNTIME_PM((dhd_pub_t *)(cfg->pub));
 #endif
@@ -2939,7 +2937,7 @@ scan_out:
 		err = scanbusy_err;
 	}
 
-#if defined(BCMDONGLEHOST) && defined(OEM_ANDROID)
+#if defined(BCMDONGLEHOST)
 	DHD_OS_SCAN_WAKE_UNLOCK((dhd_pub_t *)(cfg->pub));
 	DHD_ENABLE_RUNTIME_PM((dhd_pub_t *)(cfg->pub));
 #endif
@@ -3265,7 +3263,7 @@ wl_notify_escan_complete(struct bcm_cfg80211 *cfg,
 #endif /* WL_SCHED_SCAN */
 	wake_up_interruptible(&dhdp->conf->event_complete);
 
-#if defined(BCMDONGLEHOST) && defined(OEM_ANDROID)
+#if defined(BCMDONGLEHOST)
 	DHD_OS_SCAN_WAKE_UNLOCK((dhd_pub_t *)(cfg->pub));
 	DHD_ENABLE_RUNTIME_PM((dhd_pub_t *)(cfg->pub));
 #endif
@@ -3305,7 +3303,7 @@ wl_cfg80211_abort_scan(struct wiphy *wiphy, struct wireless_dev *wdev)
 }
 #endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)) */
 
-#if defined(OEM_ANDROID) && defined(DHCP_SCAN_SUPPRESS)
+#if defined(DHCP_SCAN_SUPPRESS)
 static void wl_cfg80211_scan_supp_timerfunc(ulong data)
 {
 	struct bcm_cfg80211 *cfg = (struct bcm_cfg80211 *)data;
@@ -4517,7 +4515,7 @@ static void wl_scan_timeout(unsigned long data)
 		WL_ERR(("%s : PCIe link might be down\n", __FUNCTION__));
 		dhd_bus_set_linkdown(dhdp, TRUE);
 		dhdp->hang_reason = HANG_REASON_PCIE_LINK_DOWN_EP_DETECT;
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) && defined(OEM_ANDROID)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27))
 		dhd_os_send_hang_message(dhdp);
 #else
 		WL_ERR(("%s: HANG event is unsupported\n", __FUNCTION__));
@@ -4557,13 +4555,13 @@ static void wl_scan_timeout(unsigned long data)
 	dhd_os_send_alert_message(dhdp);
 #endif /* WL_CFGVENDOR_SEND_ALERT_EVENT */
 
-#if defined(BCMDONGLEHOST) && defined(OEM_ANDROID)
+#if defined(BCMDONGLEHOST)
 	DHD_ENABLE_RUNTIME_PM(dhdp);
 #endif /* BCMDONGLEHOST && OEM_ANDROID */
 
 #if defined(BCMDONGLEHOST) && defined(DHD_FW_COREDUMP)
 	if (dhdp->memdump_enabled) {
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) && defined(OEM_ANDROID)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27))
 		dhd_os_send_hang_message(dhdp);
 #else
 		WL_ERR(("%s: HANG event is unsupported\n", __FUNCTION__));
@@ -5565,7 +5563,7 @@ wl_cfgscan_listen_on_channel(struct bcm_cfg80211 *cfg, struct wireless_dev *wdev
 		if (schedule_delayed_work(&cfg->loc.work,
 				msecs_to_jiffies(listen_timeout))) {
 
-#if defined(BCMDONGLEHOST) && defined(OEM_ANDROID)
+#if defined(BCMDONGLEHOST)
 			DHD_PM_WAKE_LOCK_TIMEOUT(cfg->pub, listen_timeout);
 #endif /* BCMDONGLEHOST && OEM_ANDROID */
 
@@ -7066,7 +7064,7 @@ wl_cfgscan_acs(struct wiphy *wiphy,
 				parameter->band = WLC_BAND_2G;
 				break;
 			case HOSTAPD_MODE_IEEE80211A:
-				parameter->band = WLC_BAND_5G | WLC_BAND_6G;
+				parameter->band = WLC_BAND_5G;
 				break;
 			case HOSTAPD_MODE_IEEE80211ANY:
 				parameter->band = WLC_BAND_AUTO;

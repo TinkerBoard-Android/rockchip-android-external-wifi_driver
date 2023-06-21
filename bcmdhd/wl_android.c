@@ -1314,11 +1314,9 @@ wl_android_set_bcn_li_dtim(struct net_device *dev, char *command)
 	}
 
 	cfg->suspend_bcn_li_dtim = dtim;
-#ifdef OEM_ANDROID
 	if (cfg->soft_suspend) {
 		wl_cfg80211_set_suspend_bcn_li_dtim(cfg, dev, TRUE);
 	}
-#endif /* OEM_ANDROID */
 
 	return ret;
 }
@@ -1336,11 +1334,9 @@ wl_android_set_max_dtim(struct net_device *dev, char *command)
 
 	cfg->max_dtim_enable = dtim_flag ? TRUE : FALSE;
 
-#ifdef OEM_ANDROID
 	if (cfg->soft_suspend) {
 		wl_cfg80211_set_suspend_bcn_li_dtim(cfg, dev, TRUE);
 	}
-#endif /* OEM_ANDROID */
 
 	return ret;
 }
@@ -1356,11 +1352,9 @@ wl_android_set_disable_dtim_in_suspend(struct net_device *dev, char *command)
 	dtim_flag = *(command + strlen(CMD_DISDTIM_IN_SUSPEND) + 1) - '0';
 
 	cfg->disable_dtim_in_suspend = dtim_flag ? TRUE : FALSE;
-#ifdef OEM_ANDROID
 	if (cfg->soft_suspend) {
 		wl_cfg80211_set_suspend_bcn_li_dtim(cfg, dev, TRUE);
 	}
-#endif /* OEM_ANDROID */
 
 	WL_INFORM_MEM(("wl_android_set_disable_dtim_in_suspend: "
 			"use Disable bcn_li_dtim in suspend %s\n",

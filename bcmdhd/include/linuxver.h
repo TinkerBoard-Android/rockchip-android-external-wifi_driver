@@ -1020,6 +1020,10 @@ static inline void do_gettimeofday(struct timeval *tv)
 #define SETFS(fs) BCM_REFERENCE(fs)
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0) */
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0))
+#include <linux/sched/clock.h>
+#endif /* (LINUX_VERSION_CODE < KERNEL_VERSION(6, 3, 0)) */
+
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 17, 0))
 #define PDE_DATA(inode)		pde_data(inode)
 #elif (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0))
@@ -1035,12 +1039,11 @@ static inline void do_gettimeofday(struct timeval *tv)
 #endif /* ANDROID_VERSION >= 13 && KERNEL >= 5.15.41 */
 #endif /* ANDROID_BKPORT */
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 2) || \
-	defined(CFG80211_BKPORT_MLO)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 2) || defined(CFG80211_BKPORT_MLO)
 #define	WDEV_CLIENT(wdev, field)	(wdev->u.client.field)
 #else
 #define	WDEV_CLIENT(wdev, field)		(wdev->field)
-#endif /* LINUX_VER >= 5.19 || CFG80211_BKPORT_MLO */
+#endif /* LINUX_VER >= 5.19.2 || CFG80211_BKPORT_MLO */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 32)
 #define netdev_tx_t int

@@ -69,9 +69,7 @@
 #include <frag.h>
 #endif /* WL_FILS */
 
-#ifdef OEM_ANDROID
 #include <wl_android.h>
-#endif
 
 #if defined(BCMDONGLEHOST)
 #include <dngl_stats.h>
@@ -438,10 +436,8 @@ static s32 wl_cfg80211_bssload_report_event_handler(struct bcm_cfg80211 *cfg,
 	bcm_struct_cfgdev *cfgdev, const wl_event_msg_t *e, void *data);
 static s32 wl_cfg80211_start_bssload_report(struct net_device *ndev);
 #endif /* WL_CHAN_UTIL */
-#ifdef OEM_ANDROID
 static s32 wl_apply_per_sta_conn_suspend_settings(struct bcm_cfg80211 *cfg,
 		struct net_device *dev, bool set);
-#endif /* OEM_ANDROID */
 s32 wl_cfg80211_wsec_info_pmk(struct bcm_cfg80211 *cfg, struct net_device *ndev,
 	wl_wsec_info_pmk_info_t *pmk_info, uint16 pmk_info_len, uint8 action);
 
@@ -574,31 +570,31 @@ static s32 wl_cfg80211_config_default_key(struct wiphy *wiphy,
 	struct net_device *dev,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0) || defined(CFG80211_BKPORT_MLO)
 	int link_id,
-#endif
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0) || defined(CFG80211_BKPORT_MLO) */
 	u8 key_idx, bool unicast, bool multicast);
 static s32 wl_cfg80211_add_key(struct wiphy *wiphy, struct net_device *dev,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0) || defined(CFG80211_BKPORT_MLO)
 	int link_id,
-#endif
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0) || defined(CFG80211_BKPORT_MLO) */
 	u8 key_idx, bool pairwise, const u8 *mac_addr,
 	struct key_params *params);
 static s32 wl_cfg80211_del_key(struct wiphy *wiphy, struct net_device *dev,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0) || defined(CFG80211_BKPORT_MLO)
 	int link_id,
-#endif
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0) || defined(CFG80211_BKPORT_MLO) */
 	u8 key_idx, bool pairwise, const u8 *mac_addr);
 static s32 wl_cfg80211_get_key(struct wiphy *wiphy, struct net_device *dev,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0) || defined(CFG80211_BKPORT_MLO)
 	int link_id,
-#endif
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0) || defined(CFG80211_BKPORT_MLO) */
 	u8 key_idx, bool pairwise, const u8 *mac_addr,
 	void *cookie, void (*callback) (void *cookie,
 	struct key_params *params));
-static s32 wl_cfg80211_config_default_mgmt_key(struct wiphy *wiphy,
+static int wl_cfg80211_config_default_mgmt_key(struct wiphy *wiphy,
 	struct net_device *dev,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0) || defined(CFG80211_BKPORT_MLO)
 	int link_id,
-#endif
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0) || defined(CFG80211_BKPORT_MLO) */
 	u8 key_idx);
 #if defined(WL_SUPPORT_BACKPORTED_KPATCHES) || (LINUX_VERSION_CODE >= KERNEL_VERSION(3, \
 	2, 0))
@@ -1240,8 +1236,7 @@ static struct ieee80211_sband_iftype_data __wl_he_cap = {
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0) */
 
 			.phy_cap_info[0] =
-			IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_40MHZ_80MHZ_IN_5G |
-			IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_160MHZ_IN_5G,
+			IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_40MHZ_80MHZ_IN_5G,
 			.phy_cap_info[1] =
 			IEEE80211_HE_PHY_CAP1_DEVICE_CLASS_A |
 			IEEE80211_HE_PHY_CAP1_LDPC_CODING_IN_PAYLOAD,
@@ -1281,8 +1276,6 @@ static struct ieee80211_sband_iftype_data __wl_he_cap = {
 			.he_mcs_nss_supp = {
 			.rx_mcs_80 = cpu_to_le16(0xfffa),
 			.tx_mcs_80 = cpu_to_le16(0xfffa),
-			.rx_mcs_160 = cpu_to_le16((0xfffa)),
-			.tx_mcs_160 = cpu_to_le16((0xfffa)),
 			}
 	},
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0))
@@ -1596,14 +1589,14 @@ static void wl_add_remove_pm_enable_work(struct bcm_cfg80211 *cfg,
 {
 	u16 wq_duration = 0;
 
-#if defined(BCMDONGLEHOST) && defined(OEM_ANDROID)
+#if defined(BCMDONGLEHOST)
 	dhd_pub_t *dhd =  NULL;
 #endif /* BCMDONGLEHOST && OEM_ANDROID */
 
 	if (cfg == NULL)
 		return;
 
-#if defined(BCMDONGLEHOST) && defined(OEM_ANDROID)
+#if defined(BCMDONGLEHOST)
 	dhd = (dhd_pub_t *)(cfg->pub);
 #endif /* BCMDONGLEHOST && OEM_ANDROID */
 
@@ -1616,7 +1609,7 @@ static void wl_add_remove_pm_enable_work(struct bcm_cfg80211 *cfg,
 	if (delayed_work_pending(&cfg->pm_enable_work)) {
 		cancel_delayed_work(&cfg->pm_enable_work);
 
-#if defined(BCMDONGLEHOST) && defined(OEM_ANDROID)
+#if defined(BCMDONGLEHOST)
 		DHD_PM_WAKE_UNLOCK(cfg->pub);
 #endif /* BCMDONGLEHOST && OEM_ANDROID */
 
@@ -1630,14 +1623,14 @@ static void wl_add_remove_pm_enable_work(struct bcm_cfg80211 *cfg,
 
 	/* It should schedule work item only if driver is up */
 	if (wq_duration) {
-#if defined(BCMDONGLEHOST) && defined(OEM_ANDROID)
+#if defined(BCMDONGLEHOST)
 		if (dhd->up)
-#endif /* defined(BCMDONGLEHOST) && defined(OEM_ANDROID) */
+#endif
 		{
 			if (schedule_delayed_work(&cfg->pm_enable_work,
 				msecs_to_jiffies((const unsigned int)wq_duration))) {
 
-#if defined(BCMDONGLEHOST) && defined(OEM_ANDROID)
+#if defined(BCMDONGLEHOST)
 				DHD_PM_WAKE_LOCK_TIMEOUT(cfg->pub, wq_duration);
 #endif /* BCMDONGLEHOST && OEM_ANDROID */
 			} else {
@@ -2915,7 +2908,7 @@ fail:
 		}
 #endif /* DHD_DEBUG && BCMPCIE && DHD_FW_COREDUMP */
 
-#if defined(BCMDONGLEHOST) && defined(OEM_ANDROID)
+#if defined(BCMDONGLEHOST)
 		/* If reached here, something wrong with DHD or firmware.
 		 * There could be a chance that firmware is in bad state.
 		 * Request the upper layer to do a Wi-Fi reset.
@@ -3156,7 +3149,7 @@ exit:
 #endif /* DHD_FW_COREDUMP */
 #endif /* BCMDONGLEHOST */
 
-#if defined(BCMDONGLEHOST) && defined(OEM_ANDROID)
+#if defined(BCMDONGLEHOST)
 			WL_ERR(("Notify hang event to upper layer \n"));
 			dhd->hang_reason = HANG_REASON_IFACE_DEL_FAILURE;
 			net_os_send_hang_message(bcmcfg_to_prmry_ndev(cfg));
@@ -7230,6 +7223,10 @@ wl_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 fail:
 	if (unlikely(err)) {
 		WL_ERR(("connect error (%d)\n", err));
+		if (err == BCME_NOTUP) {
+			WL_ERR(("FW not up, change to linux error code\n"));
+			err = -EAGAIN;
+		}
 		wl_clr_drv_status(cfg, CONNECTING, dev);
 		CLR_TS(cfg, conn_start);
 		/* Flush fw logs */
@@ -7420,17 +7417,15 @@ wl_cfg80211_disconnect(struct wiphy *wiphy, struct net_device *dev,
 		if (wdev->connected ||
 #else
 		if (wdev->current_bss ||
-#endif /* CFG80211_BKPORT_MLO */
+#endif /* LINUX_VER >= 5.19 || CFG80211_BKPORT_MLO */
 			WDEV_CLIENT(wdev, ssid_len))
 		{
 			WL_INFORM_MEM(("report disconnect event\n"));
 			CFG80211_DISCONNECTED(dev, 0, NULL, 0, false, GFP_KERNEL);
 		}
 	}
-#if defined(OEM_ANDROID)
 	/* Kill CMD_BTCOEXMODE timer/handler if those are enabled */
 	wl_cfg80211_btcoex_kill_handler();
-#endif /* defined(OEM_ANDROID) */
 
 #ifdef CUSTOM_SET_CPUCORE
 	/* set default cpucore */
@@ -7533,7 +7528,7 @@ static s32
 wl_cfg80211_config_default_key(struct wiphy *wiphy, struct net_device *dev,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0) || defined(CFG80211_BKPORT_MLO)
 	int link_id,
-#endif
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0) || defined(CFG80211_BKPORT_MLO) */
 	u8 key_idx, bool unicast, bool multicast)
 {
 	struct bcm_cfg80211 *cfg = wiphy_priv(wiphy);
@@ -7760,7 +7755,7 @@ static s32
 wl_cfg80211_add_key(struct wiphy *wiphy, struct net_device *dev,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0) || defined(CFG80211_BKPORT_MLO)
 	int link_id,
-#endif
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0) || defined(CFG80211_BKPORT_MLO) */
 	u8 key_idx, bool pairwise, const u8 *mac_addr,
 	struct key_params *params)
 {
@@ -7990,7 +7985,7 @@ static s32
 wl_cfg80211_del_key(struct wiphy *wiphy, struct net_device *dev,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0) || defined(CFG80211_BKPORT_MLO)
 	int link_id,
-#endif
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0) || defined(CFG80211_BKPORT_MLO) */
 	u8 key_idx, bool pairwise, const u8 *mac_addr)
 {
 	struct wl_wsec_key key = {0};
@@ -8058,7 +8053,7 @@ static s32
 wl_cfg80211_get_key(struct wiphy *wiphy, struct net_device *dev,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0) || defined(CFG80211_BKPORT_MLO)
 	int link_id,
-#endif
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0) || defined(CFG80211_BKPORT_MLO) */
 	u8 key_idx, bool pairwise, const u8 *mac_addr, void *cookie,
 	void (*callback) (void *cookie, struct key_params * params))
 {
@@ -8131,12 +8126,12 @@ wl_cfg80211_get_key(struct wiphy *wiphy, struct net_device *dev,
 	return err;
 }
 
-static s32
+static int
 wl_cfg80211_config_default_mgmt_key(struct wiphy *wiphy,
 	struct net_device *dev,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0) || defined(CFG80211_BKPORT_MLO)
 	int link_id,
-#endif
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0) || defined(CFG80211_BKPORT_MLO) */
 	u8 key_idx)
 {
 #ifdef MFP
@@ -8992,10 +8987,10 @@ wl_cfg80211_set_power_mgmt(struct wiphy *wiphy, struct net_device *dev,
 	struct bcm_cfg80211 *cfg = wiphy_priv(wiphy);
 	struct net_info *_net_info = wl_get_netinfo_by_netdev(cfg, dev);
 	s32 mode;
+	dhd_pub_t *dhd = cfg->pub;
 #ifdef RTT_SUPPORT
 	rtt_status_info_t *rtt_status;
 #endif /* RTT_SUPPORT */
-	dhd_pub_t *dhd = cfg->pub;
 	RETURN_EIO_IF_NOT_UP(cfg);
 
 	WL_DBG(("Enter\n"));
@@ -9012,7 +9007,7 @@ wl_cfg80211_set_power_mgmt(struct wiphy *wiphy, struct net_device *dev,
 	 * PM is explicitly disabled by the power mgmt API
 	 */
 	cancel_delayed_work(&cfg->pm_enable_work);
-#if defined(BCMDONGLEHOST) && defined(OEM_ANDROID)
+#if defined(BCMDONGLEHOST)
 	DHD_PM_WAKE_UNLOCK(cfg->pub);
 #endif /* BCMDONGLEHOST && OEM_ANDROID */
 	mutex_unlock(&cfg->pm_sync);
@@ -9054,12 +9049,10 @@ wl_cfg80211_set_power_mgmt(struct wiphy *wiphy, struct net_device *dev,
 		_net_info->ps_managed_start_ts = OSL_SYSUPTIME();
 	}
 
-#ifdef OEM_ANDROID
 	if (dhd->in_suspend) {
 		/* Enable/Disable bcn_li_dtim if suspend mode */
 		wl_cfg80211_set_suspend_bcn_li_dtim(cfg, dev, TRUE);
 	}
-#endif /* OEM_ANDROID */
 
 	return err;
 }
@@ -9107,161 +9100,6 @@ static __used u32 wl_find_msb(u16 bit16)
 	return ret;
 }
 
-#ifndef OEM_ANDROID
-/*
- * API invoked from driver .resume context
- */
-s32
-wl_cfg80211_resume(struct bcm_cfg80211 *cfg)
-{
-	struct net_device *ndev = bcmcfg_to_prmry_ndev(cfg);
-	s32 err = BCME_OK;
-	int pkt_filter_id = WL_WOWLAN_PKT_FILTER_ID_FIRST;
-
-	if (unlikely(!wl_get_drv_status(cfg, READY, ndev))) {
-		WL_INFORM_MEM(("device is not ready\n"));
-		return err;
-	}
-
-	while (pkt_filter_id <= WL_WOWLAN_PKT_FILTER_ID_LAST) {
-		/* delete wowlan pkt filter if any */
-		err = wldev_iovar_setbuf(ndev, "pkt_filter_delete", &pkt_filter_id,
-			sizeof(pkt_filter_id), cfg->ioctl_buf, WLC_IOCTL_SMLEN,
-			&cfg->ioctl_buf_sync);
-		/* pkt_filter_delete would return BCME_BADARG when pkt filter id
-		 * does not exist in filter list of firmware, ignore it.
-		 */
-		if (BCME_BADARG == err)
-			err = BCME_OK;
-
-		if (BCME_OK != err) {
-			WL_ERR(("pkt_filter_delete failed, id=%d, err=%d\n",
-				pkt_filter_id, err));
-		}
-		pkt_filter_id++;
-	}
-
-	return err;
-}
-#endif /* !OEM_ANDROID */
-
-#if !defined(OEM_ANDROID)
-#ifdef CONFIG_PM
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0))
-static s32 wl_wowlan_config(struct wiphy *wiphy, struct cfg80211_wowlan *wow)
-{
-	s32 err = BCME_OK;
-	struct bcm_cfg80211 *cfg = wiphy_priv(wiphy);
-	struct net_device *ndev = bcmcfg_to_prmry_ndev(cfg);
-
-	u32 i = 0, j = 0;
-	u32 buf_len = 0, pattern_size = 0;
-	wl_pkt_filter_t	*pkt_filterp = NULL;
-	wl_pkt_filter_enable_t	pkt_filter_enable;
-	u8 mask_bytes_len = 0, mask_byte_idx = 0, mask_bit_idx = 0;
-	const u32 max_buf_size = WL_PKT_FILTER_FIXED_LEN +
-		WL_PKT_FILTER_PATTERN_FIXED_LEN + (2 * WL_WOWLAN_MAX_PATTERN_LEN);
-
-	WL_DBG(("Enter\n"));
-
-	if (wow == NULL) {
-		WL_DBG(("wow config is null\n"));
-		return err;
-	}
-
-	/* configure wowlan pattern filters */
-	if (0 < wow->n_patterns) {
-		pkt_filterp = (wl_pkt_filter_t *)MALLOCZ(cfg->osh, max_buf_size);
-		if (pkt_filterp == NULL) {
-			WL_ERR(("Error allocating buffer for pkt filters\n"));
-			return -ENOMEM;
-		}
-
-		WL_DBG(("Pattern count=%d\n", wow->n_patterns));
-		while (i < wow->n_patterns) {
-
-			/* reset buffers */
-			buf_len = 0;
-			bzero(pkt_filterp, max_buf_size);
-
-			/* copy filter id */
-			store32_ua(&pkt_filterp->id, (WL_WOWLAN_PKT_FILTER_ID_FIRST + i));
-
-			/* copy filter type */
-			store32_ua(&pkt_filterp->type, WL_PKT_FILTER_TYPE_PATTERN_MATCH);
-
-			/* copy size */
-			pattern_size = htod32(wow->patterns[i].pattern_len);
-			store32_ua(&pkt_filterp->u.pattern.size_bytes, pattern_size);
-
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0))
-			/* copy offset */
-			store32_ua(&pkt_filterp->u.pattern.offset, wow->patterns[i].pkt_offset);
-#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0) */
-
-			/* convert mask from bit to byte format */
-			j = 0;
-			mask_bit_idx = 0;
-			mask_byte_idx = 0;
-			mask_bytes_len = DIV_ROUND_UP(pattern_size, 8);
-			while ((mask_byte_idx < mask_bytes_len) &&
-					(mask_bit_idx < pattern_size)) {
-
-				if (isbitset(wow->patterns[i].mask[mask_byte_idx], mask_bit_idx++))
-					pkt_filterp->u.pattern.mask_and_pattern[j] = 0xFF;
-				j++;
-				if (mask_bit_idx >= 8) {
-					/* move to next mask byte */
-					mask_bit_idx = 0;
-					mask_byte_idx++;
-				}
-			}
-
-			/* copy pattern to be matched */
-			memcpy(&pkt_filterp->u.pattern.mask_and_pattern[pattern_size],
-				wow->patterns[i].pattern, pattern_size);
-
-			/* calculate filter buffer len */
-			buf_len += WL_PKT_FILTER_FIXED_LEN;
-			buf_len += (WL_PKT_FILTER_PATTERN_FIXED_LEN + (2 * pattern_size));
-
-			/* add pkt filter */
-			err = wldev_iovar_setbuf(ndev, "pkt_filter_add", pkt_filterp, buf_len,
-				cfg->ioctl_buf, WLC_IOCTL_MEDLEN, &cfg->ioctl_buf_sync);
-			if (BCME_OK != err) {
-				WL_ERR(("pkt_filter_add failed, id=%d, err=%d\n",
-					pkt_filterp->id, err));
-				goto exit;
-			}
-
-			/* enable pkt filter id */
-			pkt_filter_enable.id = pkt_filterp->id;
-			pkt_filter_enable.enable = TRUE;
-			err = wldev_iovar_setbuf(ndev, "pkt_filter_enable", &pkt_filter_enable,
-				sizeof(pkt_filter_enable),
-				cfg->ioctl_buf, WLC_IOCTL_SMLEN, &cfg->ioctl_buf_sync);
-			if (BCME_OK != err) {
-				WL_ERR(("pkt_filter_enable failed, id=%d, err=%d\n",
-					pkt_filterp->id, err));
-				goto exit;
-			}
-			i++; /* move to next pattern */
-		}
-	} else
-		WL_DBG(("wowlan filters not found\n"));
-
-exit:
-	if (pkt_filterp) {
-		MFREE(cfg->osh, pkt_filterp, max_buf_size);
-	}
-
-	return err;
-}
-#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0) */
-#endif /* CONFIG_PM */
-#endif /* !OEM_ANDROID */
-
-#ifdef OEM_ANDROID
 void
 wl_apply_per_sta_static_settings(struct bcm_cfg80211 *cfg,
 		struct net_device *dev, bool suspend)
@@ -9578,7 +9416,6 @@ wl_apply_sta_role_settings(struct bcm_cfg80211 *cfg, bool suspend)
 		}
 	}
 }
-#endif /* OEM_ANDROID */
 
 /*
  * This API is invoked from the screen OFF/ON context
@@ -9595,10 +9432,8 @@ wl_cfg80211_soft_suspend(struct net_device *dev, bool suspend)
 	/* cache the state for internal reference */
 	cfg->soft_suspend = suspend;
 
-#ifdef OEM_ANDROID
 	/* Apply cfg80211 settings for display on/off transition */
 	wl_apply_sta_role_settings(cfg, suspend);
-#endif /* OEM_ANDROID */
 }
 
 /*
@@ -9609,69 +9444,9 @@ wl_cfg80211_handle_primary_ifchange(struct bcm_cfg80211 *cfg,
 		struct net_device *ndev)
 {
 	wl_cfgvif_roam_config(cfg, ndev, ROAM_CONF_PRIMARY_STA);
-#ifdef OEM_ANDROID
 	/* re-apply cfg80211 suspend/resume settings */
 	wl_apply_sta_role_settings(cfg, cfg->soft_suspend);
-#endif /* OEM_ANDROID */
 }
-
-#ifndef OEM_ANDROID
-/*
- * API invoked from driver .suspend context
- */
-s32
-wl_cfg80211_suspend(struct bcm_cfg80211 *cfg)
-{
-	s32 err = BCME_OK;
-#ifdef CONFIG_PM
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0))
-	struct wiphy *wiphy = bcmcfg_to_wiphy(cfg);
-#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0) */
-#endif /* CONFIG_PM */
-#ifdef DHD_CLEAR_ON_SUSPEND
-	struct net_info *iter, *next;
-	struct net_device *ndev = bcmcfg_to_prmry_ndev(cfg);
-	unsigned long flags;
-
-	if (unlikely(!wl_get_drv_status(cfg, READY, ndev))) {
-		WL_INFORM_MEM(("device is not ready : status (%d)\n",
-			(int)cfg->status));
-		return err;
-	}
-	for_each_ndev(cfg, iter, next) {
-		/* p2p discovery iface doesn't have a ndev associated with it (for kernel > 3.8) */
-		if (iter->ndev)
-			wl_set_drv_status(cfg, SCAN_ABORTING, iter->ndev);
-		}
-	WL_CFG_DRV_LOCK(&cfg->cfgdrv_lock, flags);
-	if (cfg->scan_request) {
-		cfg80211_scan_done(cfg->scan_request, true);
-		cfg->scan_request = NULL;
-	}
-	for_each_ndev(cfg, iter, next) {
-		if (iter->ndev) {
-			wl_clr_drv_status(cfg, SCANNING, iter->ndev);
-			wl_clr_drv_status(cfg, SCAN_ABORTING, iter->ndev);
-		}
-	}
-	WL_CFG_DRV_UNLOCK(&cfg->cfgdrv_lock, flags);
-	for_each_ndev(cfg, iter, next) {
-		if (iter->ndev) {
-			if (wl_get_drv_status(cfg, CONNECTING, iter->ndev)) {
-				wl_bss_connect_done(cfg, iter->ndev, NULL, NULL, false);
-			}
-		}
-	}
-#endif /* DHD_CLEAR_ON_SUSPEND */
-#ifdef CONFIG_PM
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0))
-	err = wl_wowlan_config(wiphy, wiphy->wowlan_config);
-#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0) */
-#endif /* CONFIG_PM */
-
-	return err;
-}
-#endif /* !OEM_ANDROID */
 
 static s32
 wl_update_pmklist(struct net_device *dev, struct wl_pmk_list *pmk_list,
@@ -10024,13 +9799,11 @@ static s32 wl_cfg80211_update_pmksa(struct wiphy *wiphy, struct net_device *dev,
 			if (err) {
 				goto exit;
 			}
-#ifdef OEM_ANDROID
 			/* Call wl_cfg80211_set_okc_pmkinfo() with validate_sec
 			 * as false, since sec->wpa_auth is not available in the
 			 * Wi-Fi toggle context.
 			 */
 			wl_cfg80211_set_okc_pmkinfo(cfg, dev, pmk, TRUE);
-#endif /* OEM_ANDROID */
 		}
 		if (pmksa->ssid) {
 			err = memcpy_s(&pmk_list->pmkid->ssid, sizeof(pmk_list->pmkid->ssid),
@@ -11420,10 +11193,8 @@ wl_cfg80211_post_scb_auth(struct bcm_cfg80211 *cfg, struct net_device *dev)
 	}
 #endif /* WBTEXT */
 
-#ifdef OEM_ANDROID
 	/* Apply per sta connection settings based on current suspend state */
 	wl_apply_per_sta_conn_suspend_settings(cfg, dev, cfg->soft_suspend);
-#endif /* OEM_ANDROID */
 }
 
 /* Currently adding support only for authorize/de-authorize flag
@@ -11810,7 +11581,7 @@ static int
 wl_cfg80211_get_channel(struct wiphy *wiphy, struct wireless_dev *wdev,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 2) || defined(CFG80211_BKPORT_MLO)
 	unsigned int link_id,
-#endif
+#endif /* LINUX_VER >= 5.19.2 || CFG80211_BKPORT_MLO */
 	struct cfg80211_chan_def *chandef)
 {
 	struct bcm_cfg80211 *cfg = wiphy_priv(wiphy);
@@ -11818,7 +11589,7 @@ wl_cfg80211_get_channel(struct wiphy *wiphy, struct wireless_dev *wdev,
 	int ret = 0;
 
 	RETURN_EIO_IF_NOT_UP(cfg);
-	if (NULL == wdev->netdev) {
+	if (wdev->netdev == NULL) {
 		/* the P2P interface may temporary use wdev without ndev */
 		return -EINVAL;
 	}
@@ -12721,18 +12492,6 @@ wl_post_linkup_ops(struct bcm_cfg80211 *cfg, wl_assoc_status_t *as)
 #if defined(CONFIG_TIZEN)
 	net_stat_tizen_update_wifi(ndev, WIFISTAT_CONNECTION);
 #endif /* CONFIG_TIZEN */
-
-#ifdef WL_BAM
-	{
-		struct ether_addr eth = {{0}};
-		(void)memcpy_s(&eth.octet, ETH_ALEN, as->addr, ETH_ALEN);
-		if (wl_adps_bad_ap_check(cfg, &eth)) {
-			if (wl_adps_enabled(cfg, ndev)) {
-				wl_adps_set_suspend(cfg, ndev, ADPS_SUSPEND);
-			}
-		}
-	}
-#endif	/* WL_BAM */
 
 #ifdef CONFIG_TCPACK_FASTTX
 	if (wl_get_chan_isvht80(ndev, dhdp))
@@ -14351,7 +14110,7 @@ wl_notify_connect_status(struct bcm_cfg80211 *cfg, bcm_struct_cfgdev *cfgdev,
 	s32 err = 0;
 	u32 mode;
 
-#if defined(BCMDONGLEHOST) && defined(OEM_ANDROID)
+#if defined(BCMDONGLEHOST)
 	DHD_DISABLE_RUNTIME_PM((dhd_pub_t *)cfg->pub);
 #endif /* BCMDONGLEHOST && OEM_ANDROID */
 
@@ -14375,7 +14134,7 @@ wl_notify_connect_status(struct bcm_cfg80211 *cfg, bcm_struct_cfgdev *cfgdev,
 		WL_ERR(("Unexpected event:%d for mode:%d\n", e->event_type, mode));
 	}
 
-#if defined(BCMDONGLEHOST) && defined(OEM_ANDROID)
+#if defined(BCMDONGLEHOST)
 	DHD_ENABLE_RUNTIME_PM((dhd_pub_t *)cfg->pub);
 #endif /* BCMDONGLEHOST && OEM_ANDROID */
 	return err;
@@ -14507,9 +14266,7 @@ wl_notify_roaming_status(struct bcm_cfg80211 *cfg, bcm_struct_cfgdev *cfgdev,
 
 	if ((!cfg->disable_roam_event) && (event == WLC_E_BSSID)) {
 
-#ifdef OEM_ANDROID
 		wl_add_remove_eventmsg(ndev, WLC_E_ROAM, false);
-#endif /* OEM_ANDROID */
 
 		cfg->disable_roam_event = TRUE;
 	}
@@ -14910,7 +14667,8 @@ wl_get_up_table(dhd_pub_t * dhdp, int idx)
 
 	return NULL;
 }
-
+#endif /* defined(QOS_MAP_SET) || defined(WL_CUSTOM_MAPPING_OF_DSCP) */
+#ifdef QOS_MAP_SET
 static s32
 wl_config_up_table(struct bcm_cfg80211 *cfg,
 		struct net_device *ndev, bcm_tlv_t *qos_map_ie)
@@ -14941,7 +14699,7 @@ wl_config_up_table(struct bcm_cfg80211 *cfg,
 
 	return BCME_OK;
 }
-#endif /* defined(QOS_MAP_SET) || defined(WL_CUSTOM_MAPPING_OF_DSCP) */
+#endif /* QOS_MAP_SET */
 
 #if defined(DHD_LOSSLESS_ROAMING) || defined(DBG_PKT_MON)
 /*
@@ -14997,7 +14755,7 @@ wl_notify_roam_prep_status(struct bcm_cfg80211 *cfg, bcm_struct_cfgdev *cfgdev,
 	dhdp->dequeue_prec_map = 1 << dhdp->flow_prio_map[PRIO_8021D_NC];
 	/* Restore flow control  */
 	dhd_txflowcontrol(dhdp, ALL_INTERFACES, OFF);
-#if defined(BCMDONGLEHOST) && defined(OEM_ANDROID)
+#if defined(BCMDONGLEHOST)
 	DHD_DISABLE_RUNTIME_PM(dhdp);
 #endif /* BCMDONGLEHOST && OEM_ANDROID */
 	mod_timer(&cfg->roam_timeout, jiffies + msecs_to_jiffies(WL_ROAM_TIMEOUT_MS));
@@ -15422,7 +15180,7 @@ wl_bss_roaming_done(struct bcm_cfg80211 *cfg, struct net_device *ndev,
 #else
 	roam_info.channel = notify_channel;
 	roam_info.bssid = curbssid;
-#endif /* CFG80211_BKPORT_MLO */
+#endif /* LINUX_VER >= 6.0 || CFG80211_BKPORT_MLO */
 	roam_info.req_ie = conn_info->req_ie;
 	roam_info.req_ie_len = conn_info->req_ie_len;
 	roam_info.resp_ie = conn_info->resp_ie;
@@ -15452,14 +15210,6 @@ wl_bss_roaming_done(struct bcm_cfg80211 *cfg, struct net_device *ndev,
 
 	memcpy(&cfg->last_roamed_addr, &e->addr, ETHER_ADDR_LEN);
 	wl_set_drv_status(cfg, CONNECTED, ndev);
-
-#ifdef WL_BAM
-	if (wl_adps_bad_ap_check(cfg, &e->addr)) {
-		if (wl_adps_enabled(cfg, ndev)) {
-			wl_adps_set_suspend(cfg, ndev, ADPS_SUSPEND);
-		}
-	}
-#endif	/* WL_BAM */
 
 #ifdef DHD_POST_EAPOL_M1_AFTER_ROAM_EVT
 	ifp = dhd_get_ifp(dhdp, e->ifidx);
@@ -15627,12 +15377,12 @@ wl_fillup_resp_params(struct bcm_cfg80211 *cfg, struct net_device *ndev,
 	resp_params->bssid = curbssid;
 	resp_params->bss = CFG80211_GET_BSS(wiphy, NULL, curbssid,
 		ssid->SSID, ssid->SSID_len);
-#endif
+#endif /* LINUX_VER >= 6.0 || CFG80211_BKPORT_MLO */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0) || defined(CFG80211_BKPORT_MLO)
 	if (!resp_params->links[0].bss)
 #else
 	if (!resp_params->bss)
-#endif /* CFG80211_BKPORT_MLO */
+#endif /* LINUX_VER >= 6.0 || CFG80211_BKPORT_MLO */
 	{
 		WL_ERR(("null bss\n"));
 		return BCME_ERROR;
@@ -16649,9 +16399,6 @@ static void wl_init_event_handler(struct bcm_cfg80211 *cfg)
 	cfg->evt_handler[WLC_E_ROAM_PREP] = wl_notify_roam_prep_status;
 #endif /* DHD_LOSSLESS_ROAMING || DBG_PKT_MON  */
 	cfg->evt_handler[WLC_E_ROAM_START] = wl_notify_roam_start_status;
-#ifdef WL_BAM
-	cfg->evt_handler[WLC_E_ADPS] = wl_adps_event_handler;
-#endif	/* WL_BAM */
 	cfg->evt_handler[WLC_E_PSK_SUP] = wl_cfg80211_sup_event_handler;
 	cfg->evt_handler[WLC_E_COUNTRY_CODE_CHANGED] = wl_cfg80211_ccode_evt_handler;
 #ifdef WL_BCNRECV
@@ -16874,7 +16621,6 @@ static s32 wl_create_event_handler(struct bcm_cfg80211 *cfg)
 	 * but some drivers are not in GPL license, so, making seperate queue Android only
 	 */
 
-#ifdef OEM_ANDROID
 	/* Allocate workqueue for event */
 	if (!cfg->event_workq) {
 		cfg->event_workq = alloc_workqueue("dhd_eventd",
@@ -16887,34 +16633,19 @@ static s32 wl_create_event_handler(struct bcm_cfg80211 *cfg)
 	} else {
 		INIT_WORK(&cfg->event_work, wl_event_handler);
 	}
-#endif /* OEM_ANDROID */
 
-#ifndef OEM_ANDROID
-		INIT_WORK(&cfg->event_work, wl_event_handler);
-		cfg->event_workq_init = true;
-#endif /* OEM_ANDROID */
 	return ret;
 }
 
 static void wl_destroy_event_handler(struct bcm_cfg80211 *cfg)
 {
 
-#ifdef OEM_ANDROID
 	if (cfg && cfg->event_workq) {
 		cancel_work_sync(&cfg->event_work);
 		destroy_workqueue(cfg->event_workq);
 		cfg->event_workq = NULL;
 	}
-#endif /* OEM_ANDROID */
 
-#ifndef OEM_ANDROID
-	if (cfg && cfg->event_workq_init) {
-#ifdef BCMDONGLEHOST
-		cancel_work_sync(&cfg->event_work);
-#endif /* BCMDONGLEHOST */
-		cfg->event_workq_init = false;
-	}
-#endif /* OEM_ANDROID */
 }
 
 void wl_terminate_event_handler(struct net_device *dev)
@@ -16935,7 +16666,7 @@ static void wl_del_roam_timeout(struct bcm_cfg80211 *cfg)
 	/* restore prec_map to ALLPRIO */
 	dhdp->dequeue_prec_map = ALLPRIO;
 	del_timer_sync(&cfg->roam_timeout);
-#if defined(BCMDONGLEHOST) && defined(OEM_ANDROID)
+#if defined(BCMDONGLEHOST)
 	DHD_ENABLE_RUNTIME_PM(dhdp);
 #endif /* BCMDONGLEHOST && OEM_ANDROID */
 }
@@ -16949,7 +16680,7 @@ static void wl_roam_timeout(unsigned long data)
 
 	/* restore prec_map to ALLPRIO */
 	dhdp->dequeue_prec_map = ALLPRIO;
-#if defined(BCMDONGLEHOST) && defined(OEM_ANDROID)
+#if defined(BCMDONGLEHOST)
 	DHD_ENABLE_RUNTIME_PM(dhdp);
 #endif /* BCMDONGLEHOST && OEM_ANDROID */
 }
@@ -17844,11 +17575,9 @@ s32 wl_cfg80211_attach(struct net_device *ndev, void *context)
 		}
 	}
 
-#if defined(OEM_ANDROID)
 	cfg->btcoex_info = wl_cfg80211_btcoex_init(cfg->wdev->netdev);
 	if (!cfg->btcoex_info)
 		goto cfg80211_attach_out;
-#endif /* defined(OEM_ANDROID) */
 
 #if defined(SUPPORT_RANDOM_MAC_SCAN)
 	cfg->random_mac_enabled = FALSE;
@@ -17864,7 +17593,7 @@ s32 wl_cfg80211_attach(struct net_device *ndev, void *context)
 		goto cfg80211_attach_out;
 #endif
 
-#if defined(OEM_ANDROID) && defined(DHCP_SCAN_SUPPRESS)
+#if defined(DHCP_SCAN_SUPPRESS)
 	/* wlan scan_supp timer and work thread info */
 	init_timer_compat(&cfg->scan_supp_timer, wl_cfg80211_scan_supp_timerfunc, cfg);
 	INIT_WORK(&cfg->wlan_work, wl_cfg80211_work_handler);
@@ -17891,9 +17620,6 @@ s32 wl_cfg80211_attach(struct net_device *ndev, void *context)
 	}
 #endif /* WL_NAN */
 	cfg->rssi_sum_report = FALSE;
-#ifdef WL_BAM
-	wl_bad_ap_mngr_init(cfg);
-#endif	/* WL_BAM */
 
 #if defined(DHD_DSCP_POLICY)
 	err = dhd_dscp_policy_attach(cfg);
@@ -17921,10 +17647,8 @@ void wl_cfg80211_detach(struct bcm_cfg80211 *cfg)
  */
 	wl_add_remove_pm_enable_work(cfg, WL_PM_WORKQ_DEL);
 
-#if defined(OEM_ANDROID)
 	wl_cfg80211_btcoex_deinit();
 	cfg->btcoex_info = NULL;
-#endif /* defined(OEM_ANDROID) */
 
 	wl_setup_rfkill(cfg, FALSE);
 
@@ -17947,9 +17671,6 @@ void wl_cfg80211_detach(struct bcm_cfg80211 *cfg)
 #if defined(WL_ENABLE_P2P_IF) || defined (WL_NEWCFG_PRIVCMD_SUPPORT)
 	wl_cfg80211_detach_p2p(cfg);
 #endif
-#ifdef WL_BAM
-	wl_bad_ap_mngr_deinit(cfg);
-#endif	/* WL_BAM */
 
 #ifdef WL_NAN
 	wl_cfgnan_detach(cfg);
@@ -18152,19 +17873,10 @@ wl_cfg80211_event(struct net_device *ndev, const wl_event_msg_t * e, void *data)
 		return;
 	}
 
-#ifdef OEM_ANDROID
 	if (cfg->event_workq == NULL) {
 		WL_ERR(("Event handler is not created (%s)\n", bcmevent_get_name(event_type)));
 		return;
 	}
-#endif /* OEM_ANDROID */
-
-#ifndef OEM_ANDROID
-	if (!cfg->event_workq_init) {
-		WL_ERR(("Event handler is not created\n"));
-		return;
-	}
-#endif /* OEM_ANDROID */
 
 	if (event_type == WLC_E_IF) {
 		/* Don't process WLC_E_IF events in wl_cfg80211 layer */
@@ -18196,13 +17908,8 @@ wl_cfg80211_event(struct net_device *ndev, const wl_event_msg_t * e, void *data)
 
 	if (likely(!wl_enq_event(cfg, ndev, event_type, e, data))) {
 
-#ifdef OEM_ANDROID
 		queue_work(cfg->event_workq, &cfg->event_work);
-#endif /* OEM_ANDROID */
 
-#ifndef OEM_ANDROID
-		schedule_work(&cfg->event_work);
-#endif /* OEM_ANDROID */
 	}
 	/* Mark timeout value for thread sched */
 	if ((event_type == WLC_E_ESCAN_RESULT) &&
@@ -19505,7 +19212,7 @@ static s32 __wl_cfg80211_up(struct bcm_cfg80211 *cfg)
 
 	cfg->scan_request = NULL;
 
-#if defined(OEM_ANDROID) && defined(DHCP_SCAN_SUPPRESS)
+#if defined(DHCP_SCAN_SUPPRESS)
 	/* wlan scan_supp timer and work thread info */
 	init_timer_compat(&cfg->scan_supp_timer, wl_cfg80211_scan_supp_timerfunc, cfg);
 	INIT_WORK(&cfg->wlan_work, wl_cfg80211_work_handler);
@@ -19689,7 +19396,7 @@ static s32 __wl_cfg80211_down(struct bcm_cfg80211 *cfg)
 #endif /* PROP_TXSTATUS_VSDB */
 	}
 
-#if defined(OEM_ANDROID) && defined(DHCP_SCAN_SUPPRESS)
+#if defined(DHCP_SCAN_SUPPRESS)
 	/* Force clear of scan_suppress */
 	if (cfg->scan_suppressed)
 		wl_cfg80211_scan_suppress(ndev, 0);
@@ -19844,7 +19551,7 @@ static s32 __wl_cfg80211_down(struct bcm_cfg80211 *cfg)
 
 	wl_cfg80211_clear_mgmt_vndr_ies(cfg);
 
-#if defined(BCMDONGLEHOST) && defined(OEM_ANDROID)
+#if defined(BCMDONGLEHOST)
 	DHD_OS_SCAN_WAKE_UNLOCK((dhd_pub_t *)(cfg->pub));
 #endif
 
@@ -20115,10 +19822,8 @@ s32 wl_cfg80211_down(struct net_device *dev)
 #ifdef TPUT_DEBUG_DUMP
 	wl_cfgdbg_tput_debug_mode(dev, FALSE);
 #endif /* TPUT_DEBUG_DUMP */
-#if defined(OEM_ANDROID)
 	/* Kill CMD_BTCOEXMODE timer/handler if those are enabled */
 	wl_cfg80211_btcoex_kill_handler();
-#endif /* defined(OEM_ANDROID) */
 
 	return err;
 }
@@ -21606,11 +21311,11 @@ static void wl_cfg80211_work_handler(struct work_struct * work)
 		}
 	}
 
-#if defined(BCMDONGLEHOST) && defined(OEM_ANDROID)
+#if defined(BCMDONGLEHOST)
 	DHD_PM_WAKE_UNLOCK(cfg->pub);
 #endif /* BCMDONGLEHOST && OEM_ANDROID */
 
-#if defined(OEM_ANDROID) && defined(DHCP_SCAN_SUPPRESS)
+#if defined(DHCP_SCAN_SUPPRESS)
 	if (cfg->scan_suppressed) {
 		/* There is pending scan_suppress. Clean it */
 		WL_ERR(("Clean up from timer after %d msec\n", WL_SCAN_SUPPRESS_TIMEOUT));
@@ -22565,19 +22270,28 @@ static int wl_cfg80211_update_owe_info(struct wiphy *wiphy, struct net_device *d
 	int err = 0;
 	struct bcm_cfg80211 *cfg = wl_get_cfg(dev);
 	dhd_pub_t *dhdp = (dhd_pub_t *)(cfg->pub);
-	wl_assoc_resp_params_v1_t *assoc_resp_params;
-	uint8 resp_buf[AP_OWE_IOCTL_BUF_SIZE];
+	wl_assoc_resp_params_v1_t *assoc_resp_params = NULL;
+	uint8 *resp_buf = NULL;
 	uint8 *p_resp_ies_tlv = NULL;
 	uint16 assoc_params_iovsize;
 
 	WL_DBG(("%s: Enter\n", __func__));
+
+	resp_buf = MALLOCZ(dhdp->osh, AP_OWE_IOCTL_BUF_SIZE);
+	if (resp_buf == NULL) {
+		WL_ERR(("error: failed to allocate %d bytes of memory\n", AP_OWE_IOCTL_BUF_SIZE));
+		err = BCME_NOMEM;
+		goto exit;
+	}
+
 	assoc_params_iovsize = AP_OWE_ASSOC_RESP_PARAMS_BUFSZ +
 			OFFSETOF(wl_assoc_resp_params_v1_t, ies);
 	assoc_resp_params = (wl_assoc_resp_params_v1_t *)MALLOCZ(dhdp->osh, assoc_params_iovsize);
 
 	if (assoc_resp_params == NULL) {
 		WL_ERR(("error: failed to allocate %d bytes of memory\n", assoc_params_iovsize));
-		return BCME_ERROR;
+		err = BCME_NOMEM;
+		goto exit;
 	}
 	/* setup assoc_resp_params iovar */
 	assoc_resp_params->version = WL_ASSOC_RESP_PARAMS_V1;
@@ -22610,6 +22324,10 @@ static int wl_cfg80211_update_owe_info(struct wiphy *wiphy, struct net_device *d
 		WL_DBG(("ap_assoc_resp_params failed, err=%d\n", err));
 	}
 exit:
+	if (resp_buf)
+		MFREE(dhdp->osh, resp_buf, AP_OWE_IOCTL_BUF_SIZE);
+	if (assoc_resp_params)
+		MFREE(dhdp->osh, assoc_resp_params, assoc_params_iovsize);
 	return err;
 }
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0) */
@@ -24013,7 +23731,8 @@ wl_cfg80211_sup_event_handler(struct bcm_cfg80211 *cfg, bcm_struct_cfgdev *cfgde
 			WL_DBG(("Authorizing Port with BSSID from DHD profile " MACDBG" \n",
 				MAC2STRDBG(curbssid)));
 		}
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0)) || \
+		((ANDROID_VERSION >= 13) && (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 94)))
 		cfg80211_port_authorized(ndev, (const u8 *)curbssid, NULL, 0, GFP_KERNEL);
 #else
 		cfg80211_port_authorized(ndev, (const u8 *)curbssid, GFP_KERNEL);
@@ -25177,7 +24896,7 @@ wl_cfg80211_handle_hang_event(struct net_device *ndev, uint16 hang_reason, uint3
 			dhd_bus_mem_dump(dhd);
 		}
 #endif /* DHD_FW_COREDUMP */
-#if defined(BCMDONGLEHOST) && defined(OEM_ANDROID)
+#if defined(BCMDONGLEHOST)
 		WL_ERR(("Notify hang event to upper layer \n"));
 		dhd->hang_reason = hang_reason;
 		net_os_send_hang_message(ndev);
@@ -25716,6 +25435,43 @@ wl_is_pmkid_available(struct net_device *dev, const u8 *bssid)
 	return FALSE;
 }
 
+static void
+wl_inform_sae_target_bss(struct bcm_cfg80211 *cfg,
+	bcm_struct_cfgdev *cfgdev, const wl_event_msg_t *e, void *data)
+{
+	u8 bsscfgidx = e->bsscfgidx;
+	struct net_device *ndev = cfgdev_to_wlc_ndev(cfgdev, cfg);
+	wl_ext_auth_evt_t *evt_data = (wl_ext_auth_evt_t *)data;
+	struct wiphy *wiphy = bcmcfg_to_wiphy(cfg);
+	struct cfg80211_bss *bss;
+	wl_bss_info_v109_t *bi = NULL;
+	char *buf;
+	int err;
+	buf = (char *)MALLOCZ(cfg->osh, WLC_IOCTL_MAXLEN);
+	if (buf == NULL) {
+		WL_ERR(("failed to allocate memory\n"));
+		goto out;
+	}
+	err = wldev_iovar_getbuf_bsscfg(ndev, "target_bss_info",
+		NULL, 0, buf, WLC_IOCTL_MAXLEN, bsscfgidx, &cfg->ioctl_buf_sync);
+	if (err != BCME_OK) {
+		WL_ERR(("Could not get target_bss_info %d\n", err));
+		goto out;
+	}
+	bi = (wl_bss_info_v109_t *)(buf);
+	bss = CFG80211_GET_BSS(wiphy, NULL, (u8 *)evt_data->bssid.octet,
+		evt_data->ssid.SSID, MIN(evt_data->ssid.SSID_len, DOT11_MAX_SSID_LEN));
+	if (!bss) {
+		err = wl_inform_single_bss(cfg, bi, false);
+		if (unlikely(err)) {
+			WL_ERR(("Could not add the AP info into cache\n"));
+			goto out;
+		}
+	}
+out:
+	MFREE(cfg->osh, buf, WLC_IOCTL_MAXLEN);
+}
+
 #define WL_AUTH_START_EVT_V0 0
 static s32
 wl_notify_start_auth(struct bcm_cfg80211 *cfg,
@@ -25761,6 +25517,7 @@ wl_notify_start_auth(struct bcm_cfg80211 *cfg,
 		MAC2STRDBG(&evt_v1_data->bssid), evt_v1_data->version);
 #endif
 
+	wl_inform_sae_target_bss(cfg, cfgdev, e, data);
 	/* Wait for conn_owner_nlportid been assigned in nl80211_connect */
 	for (retry = 3; retry > 0; retry--) {
 		if (wdev->conn_owner_nlportid) {

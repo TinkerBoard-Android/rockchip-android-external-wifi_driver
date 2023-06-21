@@ -61,7 +61,7 @@ void wl_cfgvendor_custom_advlog_roam_log(void *plog, uint32 armcycle);
 
 #define container_of(ptr, type, member) \
 		(type *)((char *)(ptr) - offsetof(type, member))
-#endif
+#endif /* NDIS */
 
 uint8 control_logtrace = CUSTOM_CONTROL_LOGTRACE;
 
@@ -829,13 +829,6 @@ dhd_dbg_verboselog_printf(dhd_pub_t *dhdp, prcd_event_log_hdr_t *plog_hdr,
 		else {
 			bcm_binit(&b, fmtstr_loc_buf, FMTSTR_SIZE);
 			/* XXX: The 'hdr->count - 1' is dongle time */
-#ifndef OEM_ANDROID
-			bcm_bprintf(&b, "%06d.%03d EL: %d 0x%x",
-				(uint32)(log_ptr[plog_hdr->count - 1] / EL_MSEC_PER_SEC),
-				(uint32)(log_ptr[plog_hdr->count - 1] % EL_MSEC_PER_SEC),
-				plog_hdr->tag,
-				plog_hdr->fmt_num_raw);
-#else
 			bcm_bprintf(&b, "%06d.%03d EL:%s:%u:%u %d %d 0x%x",
 				(uint32)(log_ptr[plog_hdr->count - 1] / EL_MSEC_PER_SEC),
 				(uint32)(log_ptr[plog_hdr->count - 1] % EL_MSEC_PER_SEC),
@@ -843,7 +836,6 @@ dhd_dbg_verboselog_printf(dhd_pub_t *dhdp, prcd_event_log_hdr_t *plog_hdr,
 				plog_hdr->tag,
 				plog_hdr->count,
 				plog_hdr->fmt_num_raw);
-#endif /* !OEM_ANDROID */
 			for (count = 0; count < (plog_hdr->count - 1); count++) {
 				bcm_bprintf(&b, " %x", log_ptr[count]);
 			}
@@ -2338,7 +2330,7 @@ dhd_dbg_monitor_get_tx_pkts(dhd_pub_t *dhdp, void __user *user_buf,
 	if (in_compat_syscall())
 #else
 	if (is_compat_task())
-#endif
+#endif /* LINUX_VER >= 4.6 */
 	{
 		cptr = (compat_wifi_tx_report_t *)user_buf;
 		while ((count < pkt_count) && tx_pkt && cptr) {
@@ -2472,7 +2464,7 @@ dhd_dbg_monitor_get_rx_pkts(dhd_pub_t *dhdp, void __user *user_buf,
 	if (in_compat_syscall())
 #else
 	if (is_compat_task())
-#endif
+#endif /* LINUX_VER >= 4.6 */
 	{
 		cptr = (compat_wifi_rx_report_t *)user_buf;
 		while ((count < pkt_count) && rx_pkt && cptr) {

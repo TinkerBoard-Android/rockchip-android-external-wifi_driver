@@ -97,9 +97,6 @@
 #include <dhd_debug.h>
 #if defined(WL_CFG80211)
 #include <wl_cfg80211.h>
-#ifdef WL_BAM
-#include <wl_bam.h>
-#endif	/* WL_BAM */
 #endif	/* WL_CFG80211 */
 #ifdef PNO_SUPPORT
 #include <dhd_pno.h>
@@ -157,9 +154,7 @@
 #include <dhd_wlfc.h>
 #endif
 
-#if defined(OEM_ANDROID)
 #include <wl_android.h>
-#endif
 #include <dhd_config.h>
 
 /* RX frame thread priority */
@@ -321,10 +316,8 @@ dhd_rx_frame(dhd_pub_t *dhdp, int ifidx, void *pktbuf, int numpkt, uint8 chan)
 	int i;
 	dhd_if_t *ifp;
 	wl_event_msg_t event;
-#if defined(OEM_ANDROID)
 	int tout_rx = 0;
 	int tout_ctrl = 0;
-#endif /* OEM_ANDROID */
 	void *skbhead = NULL;
 	void *skbprev = NULL;
 	uint16 protocol;
@@ -849,12 +842,10 @@ dhd_rx_frame(dhd_pub_t *dhdp, int ifidx, void *pktbuf, int numpkt, uint8 chan)
 			ret_event = dhd_wl_host_event(dhd, ifidx, pkt_data, len, &event, &data);
 
 			wl_event_to_host_order(&event);
-#if defined(OEM_ANDROID)
 			if (!tout_ctrl)
 				tout_ctrl = DHD_PACKET_TIMEOUT_MS;
-#endif /* OEM_ANDROID */
 
-#if (defined(OEM_ANDROID) && defined(PNO_SUPPORT))
+#if defined(PNO_SUPPORT)
 			if (event_type == WLC_E_PFN_NET_FOUND) {
 				/* enforce custom wake lock to garantee that Kernel not suspended */
 				tout_ctrl = CUSTOM_PNO_EVENT_LOCK_xTIME * DHD_PACKET_TIMEOUT_MS;
@@ -946,7 +937,6 @@ dhd_rx_frame(dhd_pub_t *dhdp, int ifidx, void *pktbuf, int numpkt, uint8 chan)
 				continue;
 			}
 		} else {
-#if defined(OEM_ANDROID)
 			tout_rx = DHD_PACKET_TIMEOUT_MS;
 
 			/* Override rx wakelock timeout to give hostapd enough time
@@ -958,7 +948,6 @@ dhd_rx_frame(dhd_pub_t *dhdp, int ifidx, void *pktbuf, int numpkt, uint8 chan)
 					tout_rx = DHD_HANDSHAKE_TIMEOUT_MS;
 				}
 			}
-#endif /* OEM_ANDROID */
 
 #ifdef PROP_TXSTATUS
 			dhd_wlfc_save_rxpath_ac_time(dhdp, (uint8)PKTPRIO(skb));
@@ -1113,13 +1102,11 @@ dhd_rx_frame(dhd_pub_t *dhdp, int ifidx, void *pktbuf, int numpkt, uint8 chan)
 	if (dhd->rxthread_enabled && skbhead)
 		dhd_sched_rxf(dhdp, skbhead);
 
-#if defined(OEM_ANDROID)
 	DHD_OS_WAKE_LOCK_RX_TIMEOUT_ENABLE(dhdp, tout_rx);
 	DHD_OS_WAKE_LOCK_CTRL_TIMEOUT_ENABLE(dhdp, tout_ctrl);
 
 	/* To immediately notify the host that timeout is enabled */
 	DHD_OS_WAKE_LOCK_TIMEOUT(dhdp);
-#endif /* OEM_ANDROID */
 }
 
 int
@@ -1421,10 +1408,8 @@ dhd_rx_mon_pkt(dhd_pub_t *dhdp, host_rxbuf_cmpl_t* msg, void *pkt, int ifidx)
 
 	dhd->monitor_skb = NULL;
 
-#if defined(OEM_ANDROID)
 	DHD_OS_WAKE_LOCK_RX_TIMEOUT_ENABLE(dhdp, DHD_MONITOR_TIMEOUT_MS);
 	DHD_OS_WAKE_LOCK_TIMEOUT(dhdp);
-#endif /* OEM_ANDROID */
 }
 #endif /* PCIE_FULL_DONGLE */
 #endif /* WL_MONITOR */

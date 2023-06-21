@@ -1196,6 +1196,7 @@ dhdsdio_set_wakeupctrl(dhd_bus_t *bus)
 {
 	uint8 val;
 	int err = 0;
+	UNUSED_PARAMETER(val);
 
 	/* programme the wakeup wait */
 	val = bcmsdh_cfg_read(bus->sdh, SDIO_FUNC_1, SBSDIO_FUNC1_WAKEUPCTRL, NULL);
@@ -1234,7 +1235,7 @@ dhdsdio_clk_kso_enab(dhd_bus_t *bus, bool on)
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0)) && !defined(ANDROID13_KERNEL515_BKPORT)
 	wifi_adapter_info_t *adapter = NULL;
 	uint32 bus_type = -1, bus_num = -1, slot_num = -1;
-#else
+#elif (LINUX_VERSION_CODE <= KERNEL_VERSION(4, 2, 0))
 	struct mmc_host *host;
 	struct sdioh_info *sd = (struct sdioh_info *)(bus->sdh->sdioh);
 	struct sdio_func *func = sd->func[SDIO_FUNC_0];
@@ -1248,7 +1249,7 @@ dhdsdio_clk_kso_enab(dhd_bus_t *bus, bool on)
 	sdio_retune_crc_disable(adapter->sdio_func);
 	if (on)
 		sdio_retune_hold_now(adapter->sdio_func);
-#else
+#elif (LINUX_VERSION_CODE <= KERNEL_VERSION(4, 2, 0))
 	host = func->card->host;
 	mmc_retune_disable(host);
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0) */
@@ -1380,7 +1381,7 @@ exit:
 	if (on)
 		sdio_retune_release(adapter->sdio_func);
 	sdio_retune_crc_enable(adapter->sdio_func);
-#else
+#elif (LINUX_VERSION_CODE <= KERNEL_VERSION(4, 2, 0))
 	mmc_retune_enable(host);
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0) */
 
@@ -1678,12 +1679,10 @@ dhdsdio_htclk(dhd_bus_t *bus, bool on, bool pendok)
 				DHD_ERROR(("%s: HT Avail request error: %d\n", __FUNCTION__, err));
 			}
 
-#ifdef OEM_ANDROID
 			else if (ht_avail_error == HT_AVAIL_ERROR_MAX) {
 				bus->dhd->hang_reason = HANG_REASON_HT_AVAIL_ERROR;
 				dhd_os_send_hang_message(bus->dhd);
 			}
-#endif /* OEM_ANDROID */
 			return BCME_ERROR;
 		} else {
 			ht_avail_error = 0;
@@ -2142,7 +2141,7 @@ dhdsdio_bussleep(dhd_bus_t *bus, bool sleep)
 			if (retries <= retry_limit)
 				W_SDREG(SMB_DEV_INT, &regs->tosbmailbox, retries);
 #endif
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) && defined(OEM_ANDROID)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27))
 			if (err < 0) {
 				struct net_device *net = NULL;
 				dhd_pub_t *dhd = bus->dhd;
@@ -3435,9 +3434,6 @@ enum {
 	IOV_SDREG,
 	IOV_SBREG,
 	IOV_SDCIS,
-#ifdef DHD_BUS_MEM_ACCESS
-	IOV_MEMBYTES,
-#endif /* DHD_BUS_MEM_ACCESS */
 	IOV_RAMSIZE,
 	IOV_RAMSTART,
 #ifdef DHD_DEBUG
@@ -3496,9 +3492,6 @@ const bcm_iovar_t dhdsdio_iovars[] = {
 	{"idletime",	IOV_IDLETIME,	0, 0,	IOVT_INT32,	0 },
 	{"idleclock",	IOV_IDLECLOCK,	0, 0,	IOVT_INT32,	0 },
 	{"sd1idle",	IOV_SD1IDLE,	0, 0,	IOVT_BOOL,	0 },
-#ifdef DHD_BUS_MEM_ACCESS
-	{"membytes",	IOV_MEMBYTES,	0, 0,	IOVT_BUFFER,	2 * sizeof(int) },
-#endif /* DHD_BUS_MEM_ACCESS */
 	{"ramsize",	IOV_RAMSIZE,	0, 0,	IOVT_UINT32,	0 },
 	{"ramstart",	IOV_RAMSTART,	0, 0,	IOVT_UINT32,	0 },
 	{"dwnldstate",	IOV_SET_DOWNLOAD_STATE,	0, 0,	IOVT_BOOL,	0 },
@@ -4643,55 +4636,6 @@ dhdsdio_doiovar(dhd_bus_t *bus, const bcm_iovar_t *vi, uint32 actionid, const ch
 		break;
 #endif /* DHD_DEBUG */
 
-#ifdef DHD_BUS_MEM_ACCESS
-	case IOV_SVAL(IOV_MEMBYTES):
-	case IOV_GVAL(IOV_MEMBYTES):
-	{
-		uint32 address;
-		uint size, dsize;
-		uint8 *data;
-
-		bool set = (actionid == IOV_SVAL(IOV_MEMBYTES));
-
-		ASSERT(plen >= 2*sizeof(int));
-
-		address = (uint32)int_val;
-		bcopy((char *)params + sizeof(int_val), &int_val, sizeof(int_val));
-		size = (uint)int_val;
-
-		/* Do some validation */
-		dsize = set ? plen - (2 * sizeof(int)) : len;
-		if (dsize < size) {
-			DHD_ERROR(("%s: error on %s membytes, addr 0x%08x size %d dsize %d\n",
-			           __FUNCTION__, (set ? "set" : "get"), address, size, dsize));
-			bcmerror = BCME_BADARG;
-			break;
-		}
-
-		DHD_INFO(("%s: Request to %s %d bytes at address 0x%08x\n", __FUNCTION__,
-		          (set ? "write" : "read"), size, address));
-
-		/* check if CR4 */
-		if (si_setcore(bus->sih, ARMCR4_CORE_ID, 0)) {
-			/*
-			 * If address is start of RAM (i.e. a downloaded image),
-			 * store the reset instruction to be written in 0
-			 */
-			if (set && address == bus->dongle_ram_base) {
-				bus->resetinstr = *(((uint32*)params) + 2);
-			}
-		}
-
-		/* Generate the actual data pointer */
-		data = set ? (uint8*)params + 2 * sizeof(int): (uint8*)arg;
-
-		/* Call to do the transfer */
-		bcmerror = dhdsdio_membytes(bus, set, address, data, size);
-
-		break;
-	}
-#endif /* DHD_BUS_MEM_ACCESS */
-
 #if defined(FW_SIGNATURE)
 	case IOV_SVAL(IOV_SET_DOWNLOAD_INFO):
 	{
@@ -5807,6 +5751,58 @@ dhdsdio_bus_save_download_info(dhd_bus_t *bus, uint32 download_addr,
 } /* dhdsdio_bus_save_download_info */
 
 /* Read a binary file and write it to the specified socram dest address */
+#ifdef DHD_LINUX_STD_FW_API
+static int
+dhdsdio_download_sig_file(dhd_bus_t *bus, char *path, uint32 type)
+{
+	int bcmerror = BCME_OK;
+	int srcsize = 0;
+	uint32 dest_size = 0;   /* dongle RAM dest size */
+	const struct firmware *sig = NULL;
+
+	if (path == NULL || path[0] == '\0') {
+		DHD_ERROR(("%s: no file\n", __FUNCTION__));
+		bcmerror = BCME_NOTFOUND;
+		goto exit;
+	}
+
+	bcmerror = dhd_os_get_img_fwreq(&sig, bus->fwsig_filename);
+	if (bcmerror < 0) {
+		DHD_ERROR(("dhd_os_get_img(Request Firmware API) error : %d\n",
+			bcmerror));
+		goto exit;
+	}
+	DHD_ERROR(("%s: dhd_os_get_img(Request Firmware API) success. size %d.\n",
+		__FUNCTION__, sig->size));
+
+	srcsize = sig->size;
+	if (srcsize <= 0 || srcsize > MEMBLOCK) {
+		DHD_ERROR(("%s: invalid fwsig size %u\n", __FUNCTION__, srcsize));
+		bcmerror = BCME_BUFTOOSHORT;
+		goto exit;
+	}
+
+	dest_size = ROUNDUP(srcsize, 4);
+	/* Write the src buffer as a rTLV to the dongle */
+	GCC_DIAGNOSTIC_PUSH_SUPPRESS_CAST();
+	bcmerror = dhdsdio_download_rtlv(bus, type, dest_size, (uint8 *)sig->data);
+	GCC_DIAGNOSTIC_POP();
+	if (bcmerror) {
+		DHD_ERROR(("%s: error %d on writing %d membytes at 0x%08x\n",
+			__FUNCTION__, bcmerror, srcsize, bus->ramtop_addr));
+		goto exit;
+	}
+
+	bus->fwsig_download_addr = bus->ramtop_addr;
+	bus->fwsig_download_len = dest_size;
+
+exit:
+	if (sig)
+	dhd_os_close_img_fwreq(sig);
+
+	return bcmerror;
+}
+#else
 static int
 dhdsdio_download_sig_file(dhd_bus_t *bus, char *path, uint32 type)
 {
@@ -5876,6 +5872,7 @@ exit:
 
 	return bcmerror;
 } /* dhdsdio_download_sig_file */
+#endif /* DHD_LINUX_STD_FW_API */
 
 static int
 dhdsdio_bus_write_fwsig(dhd_bus_t *bus, char *fwsig_path, char *nvsig_path)
@@ -9169,14 +9166,6 @@ dhd_bus_watchdog(dhd_pub_t *dhdp)
 			bus->idlecount = 0;
 			if (bus->activity) {
 				bus->activity = FALSE;
-#if !defined(OEM_ANDROID) && !defined(NDIS)
-/* XXX
- * For Android turn off clocks as soon as possible, to improve power
- * efficiency. For non-android, extend clock-active period for voice
- * quality reasons (see PR84690/Jira:SWWLAN-7650).
- */
-			} else {
-#endif /* !defined(OEM_ANDROID) && !defined(NDIS) */
 				if (!bus->poll && SLPAUTO_ENAB(bus)) {
 					if (!bus->readframes)
 						dhdsdio_bussleep(bus, TRUE);
@@ -9591,9 +9580,6 @@ dhdsdio_probe(uint16 venid, uint16 devid, uint16 bus_no, uint16 slot,
 	{
 		if ((ret = dhd_bus_start(bus->dhd)) != 0) {
 			DHD_ERROR(("%s: dhd_bus_start failed\n", __FUNCTION__));
-#if !defined(OEM_ANDROID)
-			if (ret == BCME_NOTUP)
-#endif /* !OEM_ANDROID */
 				goto fail;
 		}
 #if defined(LINUX) || defined(linux)
@@ -10153,6 +10139,9 @@ exit:
 	return ret;
 }
 
+#ifdef BCM_REQUEST_FW
+extern char clm_path[MOD_PARAM_PATHLEN];
+#endif /* BCM_REQUEST_FW */
 static int
 dhdsdio_download_firmware(struct dhd_bus *bus, osl_t *osh, void *sdh)
 {
@@ -10624,6 +10613,8 @@ dhdsdio_download_code_file(struct dhd_bus *bus, char *pfw_path)
 			bcmerror));
 		goto err;
 	}
+	bus->fw_download_len = fw->size;
+	bus->fw_download_addr = bus->dongle_ram_base;
 	residual_len = fw->size;
 
 	/* Update the dongle image download block size depending on the F1 block size */
@@ -10658,7 +10649,7 @@ dhdsdio_download_code_file(struct dhd_bus *bus, char *pfw_path)
 	/* Download image */
 	while (residual_len) {
 		len = MIN(residual_len, memblock_size);
-		bcopy((uint8 *)fw->data + buf_offset, (uint8 *)memptr, len);
+		bcopy((const uint8 *)fw->data + buf_offset, (uint8 *)memptr, len);
 		/* check if CR4 */
 		if (si_setcore(bus->sih, ARMCR4_CORE_ID, 0)) {
 			/* if address is 0, store the reset instruction to be written in 0 */
@@ -11062,8 +11053,8 @@ dhdsdio_download_nvram(struct dhd_bus *bus)
 			           __FUNCTION__, bcmerror));
 		}
 	} else {
-		DHD_ERROR(("%s: error reading nvram file: %d\n",
-		           __FUNCTION__, len));
+		DHD_ERROR(("%s: error reading nvram file: %s %d\n",
+		           __FUNCTION__, pnv_path, len));
 		bcmerror = BCME_SDIO_ERROR;
 	}
 
@@ -11100,7 +11091,8 @@ _dhdsdio_download_firmware(struct dhd_bus *bus)
 	/* External image takes precedence if specified */
 	if ((bus->fw_path != NULL) && (bus->fw_path[0] != '\0')) {
 		if (dhdsdio_download_code_file(bus, bus->fw_path)) {
-			DHD_ERROR(("%s: dongle image file download failed\n", __FUNCTION__));
+			DHD_ERROR(("%s: dongle image file %s download failed\n",
+				__FUNCTION__, bus->fw_path));
 #ifdef BCMEMBEDIMAGE
 			embed = TRUE;
 #else
@@ -11341,12 +11333,10 @@ dhd_bus_devreset(dhd_pub_t *dhdp, uint8 flag)
 			dhdsdio_advertise_bus_cleanup(bus->dhd);
 			dhd_os_sdlock(dhdp);
 			dhd_os_wd_timer(dhdp, 0);
-#if defined(OEM_ANDROID)
 #if !defined(IGNORE_ETH0_DOWN)
 			/* Force flow control as protection when stop come before ifconfig_down */
 			dhd_txflowcontrol(bus->dhd, ALL_INTERFACES, ON);
 #endif /* !defined(IGNORE_ETH0_DOWN) */
-#endif /* OEM_ANDROID */
 			/* Expect app to have torn down any connection before calling */
 			/* Stop the bus, disable F2 */
 			dhd_bus_stop(bus, FALSE);
@@ -11415,10 +11405,10 @@ dhd_bus_devreset(dhd_pub_t *dhdp, uint8 flag)
 						bus->dhd->dongle_reset = FALSE;
 						bus->dhd->up = TRUE;
 
-#if defined(OEM_ANDROID) && !defined(IGNORE_ETH0_DOWN)
+#if !defined(IGNORE_ETH0_DOWN)
 						/* Restore flow control  */
 						dhd_txflowcontrol(bus->dhd, ALL_INTERFACES, OFF);
-#endif /* defined(OEM_ANDROID) &&  (!defined(IGNORE_ETH0_DOWN)) */
+#endif
 						dhd_os_wd_timer(dhdp, dhd_watchdog_ms);
 
 						DHD_TRACE(("%s: WLAN ON DONE\n", __FUNCTION__));
@@ -11443,7 +11433,6 @@ dhd_bus_devreset(dhd_pub_t *dhdp, uint8 flag)
 		} else {
 			DHD_INFO(("%s called when dongle is not in reset\n",
 				__FUNCTION__));
-#if defined(OEM_ANDROID)
 			DHD_INFO(("Will call dhd_bus_start instead\n"));
 			dhd_bus_resume(dhdp, 1);
 #if defined(HW_OOB) || defined(FORCE_WOWLAN)
@@ -11452,7 +11441,6 @@ dhd_bus_devreset(dhd_pub_t *dhdp, uint8 flag)
 			if ((bcmerror = dhd_bus_start(dhdp)) != 0)
 				DHD_ERROR(("%s: dhd_bus_start fail with %d\n",
 					__FUNCTION__, bcmerror));
-#endif /* defined(OEM_ANDROID) */
 		}
 	}
 
