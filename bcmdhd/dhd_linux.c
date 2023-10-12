@@ -20771,7 +20771,9 @@ int custom_xps_map_set(struct net_device *net, char *buf, size_t len)
 		return err;
 	}
 
-	err = netif_set_xps_queue(net, mask, 0);
+	cpus_read_lock();
+	err = __netif_set_xps_queue(net, cpumask_bits(mask), 0, XPS_CPUS);
+	cpus_read_unlock();
 
 	free_cpumask_var(mask);
 
