@@ -3873,6 +3873,10 @@ wl_iapsta_suspend_resume(dhd_pub_t *dhd, int suspend)
 	if (suspend)
 		wl_timer_mod(dhd, &apsta_params->monitor_timer, 0);
 #endif /* TPUT_MONITOR */
+#ifdef RXF0OVFL_REINIT_WAR
+	if (suspend)
+		wl_timer_mod(dhd, &apsta_params->rxf0ovfl_timer, 0);
+#endif
 
 	for (i=0; i<MAX_IF_NUM; i++) {
 		cur_if = &apsta_params->if_info[i];
@@ -3892,6 +3896,13 @@ wl_iapsta_suspend_resume(dhd_pub_t *dhd, int suspend)
 	if (!suspend)
 		wl_timer_mod(dhd, &apsta_params->monitor_timer, dhd->conf->tput_monitor_ms);
 #endif /* TPUT_MONITOR */
+#ifdef RXF0OVFL_REINIT_WAR
+	if (!suspend) {
+		if (dhd->conf->war & FW_REINIT_RXF0OVFL) {
+			wl_timer_mod(dhd, &apsta_params->rxf0ovfl_timer, RXF0OVFL_POLLING_TIMEOUT);
+		}
+	}
+#endif
 
 	return 0;
 }

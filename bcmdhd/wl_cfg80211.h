@@ -156,7 +156,7 @@ struct wl_ibss;
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0))
 /* Use driver managed regd */
-#define WL_AUTO_COUNTRY	1
+//#define WL_AUTO_COUNTRY	1
 #define WL_SELF_MANAGED_REGDOM
 #endif /* KERNEL >= 4.0 */
 

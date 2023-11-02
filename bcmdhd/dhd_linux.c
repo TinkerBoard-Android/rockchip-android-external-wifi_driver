@@ -6850,6 +6850,8 @@ dhd_open(struct net_device *net)
 
 	WL_MSG(net->name, "Enter\n");
 	DHD_ERROR(("%s\n", dhd_version));
+	if (ANDROID_VERSION > 0)
+		printf("ANDROID_VERSION = %d\n", ANDROID_VERSION);
 	/* Init wakelock */
 	if (!dhd_download_fw_on_driverload) {
 		if (!(dhd->dhd_state & DHD_ATTACH_STATE_WAKELOCKS_INIT)) {
@@ -15990,6 +15992,9 @@ dhd_dev_get_feature_set(struct net_device *dev)
 #ifdef ROAMEXP_SUPPORT
 	 feature_set |= WIFI_FEATURE_CONTROL_ROAMING;
 #endif /* ROAMEXP_SUPPORT */
+#ifdef WL_LATENCY_MODE
+	feature_set |= WIFI_FEATURE_SET_LATENCY_MODE;
+#endif /* WL_LATENCY_MODE */
 #ifdef WL_P2P_RAND
 	feature_set |= WIFI_FEATURE_P2P_RAND_MAC;
 #endif /* WL_P2P_RAND */
