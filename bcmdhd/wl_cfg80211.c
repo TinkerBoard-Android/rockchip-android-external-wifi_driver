@@ -12792,10 +12792,10 @@ void wl_config_custom_regulatory(struct wiphy *wiphy)
 
 	/* Use self managed regulatory domain */
 	wiphy->regulatory_flags |=   REGULATORY_WIPHY_SELF_MANAGED
-	/* From kernel 6.4.4, this bit is removed and will be reused later */
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 4, 4))
+	/* From kernel 6.1.0, this bit is removed and will be reused later */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 		| REGULATORY_IGNORE_STALE_KICKOFF
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(6, 4, 4) */
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0) */
 		;
 #ifdef EXT_REG_INFO
 	regd_len = sizeof(struct ieee80211_regdomain) +
