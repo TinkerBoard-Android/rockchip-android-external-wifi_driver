@@ -7,6 +7,8 @@
 #include <linux/platform_device.h>
 #include "aic_bsp_driver.h"
 #include "rwnx_version_gen.h"
+#include "aicwf_txq_prealloc.h"
+
 
 #define DRV_DESCRIPTION       "AIC BSP"
 #define DRV_COPYRIGHT         "Copyright(c) 2015-2020 AICSemi"
@@ -95,6 +97,25 @@ const struct aicbsp_firmware fw_8800dc_u02[] = {
 	},
 };
 
+const struct aicbsp_firmware fw_8800dc_h_u02[] = {
+	[AICBSP_CPMODE_WORK] = {
+		.desc          = "normal work mode(8800dc_h sdio u02)",
+		.bt_adid       = "fw_adid_8800dc_u02h.bin",
+		.bt_patch      = "fw_patch_8800dc_u02h.bin",
+		.bt_table      = "fw_patch_table_8800dc_u02h.bin",
+		.wl_fw         = "fmacfw_patch_8800dc_h_u02.bin"
+	},
+
+	[AICBSP_CPMODE_TEST] = {
+		.desc          = "rf test mode(8800dc_h sdio u02)",
+		.bt_adid       = "fw_adid_8800dc_u02h.bin",
+		.bt_patch      = "fw_patch_8800dc_u02h.bin",
+		.bt_table      = "fw_patch_table_8800dc_u02h.bin",
+		.wl_fw         = "lmacfw_rf_8800dc.bin" //u01,u02 lmacfw load same bin
+	},
+};
+
+
 const struct aicbsp_firmware fw_8800d80_u01[] = {
 	[AICBSP_CPMODE_WORK] = {
 		.desc          = "normal work mode(8800d80 sdio u01)",
@@ -109,7 +130,7 @@ const struct aicbsp_firmware fw_8800d80_u01[] = {
 		.bt_adid       = "fw_adid_8800d80.bin",
 		.bt_patch      = "fw_patch_8800d80.bin",
 		.bt_table      = "fw_patch_table_8800d80.bin",
-		.wl_fw         = "fmacfw_rf_8800d80.bin"
+		.wl_fw         = "lmacfw_rf_8800d80.bin"
 	},
 };
 
@@ -127,7 +148,7 @@ const struct aicbsp_firmware fw_8800d80_u02[] = {
 		.bt_adid       = "fw_adid_8800d80_u02.bin",
 		.bt_patch      = "fw_patch_8800d80_u02.bin",
 		.bt_table      = "fw_patch_table_8800d80_u02.bin",
-		.wl_fw         = "fmacfw_rf_8800d80_u02.bin"
+		.wl_fw         = "lmacfw_rf_8800d80_u02.bin"
 	},
 };
 
@@ -136,6 +157,11 @@ struct aicbsp_info_t aicbsp_info = {
 	.hwinfo   = AICBSP_HWINFO_DEFAULT,
 	.cpmode   = AICBSP_CPMODE_DEFAULT,
 	.fwlog_en = AICBSP_FWLOG_EN_DEFAULT,
+#ifdef CONFIG_IRQ_FALL
+	.irqf     = 1,
+#else
+	.irqf     = 0,
+#endif
 };
 
 struct mutex aicbsp_power_lock;
@@ -297,9 +323,10 @@ static int __init aicbsp_init(void)
 	int ret;
 	printk("%s\n", __func__);
 	printk("RELEASE_DATE:%s\r\n", RELEASE_DATE);
-	
+
 	aicbsp_info.cpmode = testmode;
-	
+
+	aicbsp_resv_mem_init();
 	ret = platform_driver_register(&aicbsp_driver);
 	if (ret) {
 		pr_err("register platform driver failed: %d\n", ret);
@@ -320,23 +347,30 @@ static int __init aicbsp_init(void)
 	}
 
 	mutex_init(&aicbsp_power_lock);
-#ifdef CONFIG_PLATFORM_ROCKCHIP
+#if defined CONFIG_PLATFORM_ROCKCHIP || defined CONFIG_PLATFORM_ROCKCHIP2
 	aicbsp_set_subsys(AIC_BLUETOOTH, AIC_PWR_ON);
 #endif
 	return 0;
 }
 
 void aicbsp_sdio_exit(void);
+extern struct aic_sdio_dev *aicbsp_sdiodev;
 
 static void __exit aicbsp_exit(void)
 {
-#ifdef CONFIG_PLATFORM_ROCKCHIP
-	aicbsp_sdio_exit();
+#if defined CONFIG_PLATFORM_ROCKCHIP || defined CONFIG_PLATFORM_ROCKCHIP2
+    if(aicbsp_sdiodev){
+    	aicbsp_sdio_exit();
+    }
 #endif
 	sysfs_remove_group(&(aicbsp_pdev->dev.kobj), &aicbsp_attribute_group);
 	platform_device_del(aicbsp_pdev);
 	platform_driver_unregister(&aicbsp_driver);
 	mutex_destroy(&aicbsp_power_lock);
+	aicbsp_resv_mem_deinit();
+#ifdef CONFIG_PREALLOC_TXQ
+    aicwf_prealloc_txq_free();
+#endif
 	printk("%s\n", __func__);
 }
 

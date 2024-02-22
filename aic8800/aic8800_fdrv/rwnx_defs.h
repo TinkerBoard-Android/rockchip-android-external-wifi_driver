@@ -29,8 +29,13 @@
 #include "rwnx_mu_group.h"
 #include "rwnx_platform.h"
 #include "rwnx_cmds.h"
+#ifdef CONFIG_GKI
 #include "rwnx_gki.h"
+#endif
 #include "rwnx_compat.h"
+#ifdef CONFIG_FILTER_TCP_ACK
+#include "aicwf_tcp_ack.h"
+#endif
 
 #ifdef AICWF_SDIO_SUPPORT
 #include "aicwf_sdio.h"
@@ -295,6 +300,7 @@ struct rwnx_vif {
 	struct net_device *ndev;
 	struct net_device_stats net_stats;
 	struct rwnx_key key[6];
+    unsigned long drv_flags;
 	atomic_t drv_conn_state;
 	u8 drv_vif_index;           /* Identifier of the VIF in driver */
 	u8 vif_index;               /* Identifier of the station in FW */
@@ -320,6 +326,13 @@ struct rwnx_vif {
 			bool external_auth;  /* Indicate if external authentication is in progress */
 			u32 group_cipher_type;
 			u32 paired_cipher_type;
+			//connected network info start
+			char ssid[33];//ssid max is 32, but this has one spare for '\0'
+			int ssid_len;
+			u8 bssid[ETH_ALEN];
+			u32 conn_owner_nlportid;
+			bool is_roam;
+			//connected network info end
 		} sta;
 		struct {
 			u16 flags;                 /* see rwnx_ap_flags */
@@ -594,10 +607,18 @@ struct rwnx_hw {
 #endif
 	struct rwnx_survey_info survey[SCAN_CHANNEL_MAX];
 	struct cfg80211_scan_request *scan_request;
+#ifdef CONFIG_SCHED_SCAN
+    struct cfg80211_sched_scan_request *sched_scan_req;
+#endif
 	struct rwnx_chanctx chanctx_table[NX_CHAN_CTXT_CNT];
 	u8 cur_chanctx;
 
 	u8 monitor_vif; /* FW id of the monitor interface, RWNX_INVALID_VIF if no monitor vif at fw level */
+
+#ifdef CONFIG_FILTER_TCP_ACK
+	/* tcp ack management */
+	struct tcp_ack_manage ack_m;
+#endif
 
 	/* RoC Management */
 	struct rwnx_roc_elem *roc_elem;             /* Information provided by cfg80211 in its remain on channel request */
@@ -605,7 +626,6 @@ struct rwnx_hw {
 
 	struct rwnx_cmd_mgr *cmd_mgr;
 
-	unsigned long drv_flags;
 	struct rwnx_plat *plat;
 
 	spinlock_t tx_lock;
@@ -633,7 +653,7 @@ struct rwnx_hw {
 	struct rwnx_ipc_dbgdump_elem dbgdump_elem;
 	struct rwnx_ipc_elem_pool e2arxdesc_pool;
 	struct rwnx_ipc_skb_elem *e2aunsuprxvec_elems;
-	struct rwnx_ipc_rxbuf_elems rxbuf_elems;
+	//struct rwnx_ipc_rxbuf_elems rxbuf_elems;
 	struct rwnx_ipc_elem_var scan_ie;
 
 	struct kmem_cache      *sw_txhdr_cache;
@@ -641,10 +661,15 @@ struct rwnx_hw {
 	struct rwnx_debugfs     debugfs;
 	struct rwnx_stats       stats;
 
-	struct rwnx_txq txq[NX_NB_TXQ];
+#ifdef CONFIG_PREALLOC_TXQ
+    struct rwnx_txq *txq;
+#else
+    struct rwnx_txq txq[NX_NB_TXQ];
+#endif
+
 	struct rwnx_hwq hwq[NX_TXQ_CNT];
 
-	u8 avail_idx_map;
+	u64 avail_idx_map;
 	u8 vif_started;
 	bool adding_sta;
 	struct rwnx_phy_info phy;
@@ -673,6 +698,15 @@ struct rwnx_hw {
     struct workqueue_struct *apmStaloss_wq;
     u8 apm_vif_idx;
     u8 sta_mac_addr[6];
+
+    struct wakeup_source *ws_rx;
+    struct wakeup_source *ws_irqrx;
+    struct wakeup_source *ws_tx;
+    struct wakeup_source *ws_pwrctrl;
+
+#ifdef CONFIG_SCHED_SCAN
+    bool is_sched_scan;
+#endif//CONFIG_SCHED_SCAN 
 };
 
 u8 *rwnx_build_bcn(struct rwnx_bcn *bcn, struct cfg80211_beacon_data *new);
@@ -686,7 +720,7 @@ extern u8 chip_id;
 
 static inline bool is_multicast_sta(int sta_idx)
 {
-    if((g_rwnx_plat->sdiodev->chipid == PRODUCT_ID_AIC8801) || (g_rwnx_plat->sdiodev->chipid == PRODUCT_ID_AIC8800D80) ||
+    if((g_rwnx_plat->sdiodev->chipid == PRODUCT_ID_AIC8801) ||
 		((g_rwnx_plat->sdiodev->chipid == PRODUCT_ID_AIC8800DC || g_rwnx_plat->sdiodev->chipid == PRODUCT_ID_AIC8800DW) && chip_id < 3))
         {
             return (sta_idx >= NX_REMOTE_STA_MAX_FOR_OLD_IC);

@@ -47,12 +47,14 @@ int aicwf_bus_init(uint bus_hdrlen, struct device *dev)
 	if (IS_ERR(bus_if->bustx_thread)) {
 		bus_if->bustx_thread  = NULL;
 		txrx_err("aicwf_bustx_thread run fail\n");
+		ret = -1;
 		goto fail;
 	}
 
 	if (IS_ERR(bus_if->busrx_thread)) {
 		bus_if->busrx_thread  = NULL;
 		txrx_err("aicwf_bustx_thread run fail\n");
+		ret = -1;
 		goto fail;
 	}
 
@@ -73,7 +75,7 @@ void aicwf_bus_deinit(struct device *dev)
 		return;
 	}
 	sdio_dbg("%s", __func__);
-	bus_if = dev_get_drvdata(dev);
+	bus_if = aicbsp_get_drvdata(dev);
 	aicwf_bus_stop(bus_if);
 
 	sdiodev = bus_if->bus_priv.sdio;

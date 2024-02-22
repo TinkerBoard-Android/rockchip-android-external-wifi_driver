@@ -39,7 +39,7 @@
 #define RWNX_CMD_WAIT_COMPLETE(flags) \
 	(!(flags & (RWNX_CMD_FLAG_WAIT_ACK | RWNX_CMD_FLAG_WAIT_CFM)))
 
-#define RWNX_CMD_MAX_QUEUED         8
+#define RWNX_CMD_MAX_QUEUED         16
 
 #ifdef CONFIG_RWNX_FHOST
 #include "ipc_fhost.h"

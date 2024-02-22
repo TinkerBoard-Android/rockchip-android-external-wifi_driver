@@ -197,7 +197,9 @@ static int cmd_mgr_queue(struct rwnx_cmd_mgr *cmd_mgr, struct rwnx_cmd *cmd)
 
 		kfree(cmd->a2e_msg);
 	} else {
-		WAKE_CMD_WORK(cmd_mgr);
+        if(cmd_mgr->queue_sz <= 1){
+		    WAKE_CMD_WORK(cmd_mgr);
+        }
 		return 0;
 	}
 

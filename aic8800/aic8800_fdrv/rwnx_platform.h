@@ -33,6 +33,9 @@
 #endif
 
 #define RWNX_FCU_FW_NAME                "fcuram.bin"
+#if (defined(CONFIG_DPD) && !defined(CONFIG_FORCE_DPD_CALIB))
+#define FW_DPDRESULT_NAME_8800DC        "aic_dpdresult_lite_8800dc.bin"
+#endif
 
 /**
  * Type of memory to access (cf rwnx_plat.get_address)
@@ -118,9 +121,11 @@ void get_userconfig_xtal_cap(xtal_cap_conf_t *xtal_cap);
 void get_userconfig_txpwr_lvl_in_fdrv(txpwr_lvl_conf_t *txpwr_lvl);
 void get_userconfig_txpwr_lvl_v2_in_fdrv(txpwr_lvl_conf_v2_t *txpwr_lvl_v2);
 void get_userconfig_txpwr_lvl_v3_in_fdrv(txpwr_lvl_conf_v3_t *txpwr_lvl_v3);
+void get_userconfig_txpwr_lvl_adj_in_fdrv(txpwr_lvl_adj_conf_t *txpwr_lvl_adj);
+
 void get_userconfig_txpwr_ofst_in_fdrv(txpwr_ofst_conf_t *txpwr_ofst);
-
-
+void get_userconfig_txpwr_ofst2x_in_fdrv(txpwr_ofst2x_conf_t *txpwr_ofst2x);
+void get_userconfig_txpwr_loss(txpwr_loss_conf_t *txpwr_loss);
 extern struct device *rwnx_platform_get_dev(struct rwnx_plat *rwnx_plat);
 
 static inline unsigned int rwnx_platform_get_irq(struct rwnx_plat *rwnx_plat)

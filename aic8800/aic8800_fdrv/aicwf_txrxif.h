@@ -97,8 +97,10 @@ struct aicwf_bus {
 	u8 *cmd_buf;
 	struct completion bustx_trgg;
 	struct completion busrx_trgg;
+        struct completion busirq_trgg;//new oob feature
 	struct task_struct *bustx_thread;
 	struct task_struct *busrx_thread;
+        struct task_struct *busirq_thread;//new oob feature
 };
 
 struct aicwf_tx_priv {
@@ -159,7 +161,8 @@ struct recv_msdu {
 	 u8  tid;
 	 u16 seq_num;
 	 u8 forward;
-	 uint len;
+	 //uint len;
+	 u32 is_amsdu;
 	 u8 *rx_data;
 	 //for pending rx reorder list
 	struct list_head reord_pending_list;

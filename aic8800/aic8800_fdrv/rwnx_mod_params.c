@@ -1165,6 +1165,11 @@ static void rwnx_set_he_capa(struct rwnx_hw *rwnx_hw, struct wiphy *wiphy)
 						IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_40MHZ_IN_2G;
 		he_cap->ppe_thres[0] |= 0x10;
 	}
+	if (rwnx_hw->mod_params->use_80) {
+		he_cap->ppe_thres[0] |= 0x20;
+		he_cap->ppe_thres[2] |= 0xc0;
+		he_cap->ppe_thres[3] |= 0x07;
+	}
 	//if (rwnx_hw->mod_params->use_80)
 	{
 		he_cap->he_cap_elem.phy_cap_info[0] |=
@@ -1273,6 +1278,11 @@ static void rwnx_set_he_capa(struct rwnx_hw *rwnx_hw, struct wiphy *wiphy)
 		he_cap->he_cap_elem.phy_cap_info[0] |=
 						IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_40MHZ_IN_2G;
 		he_cap->ppe_thres[0] |= 0x10;
+	}
+	if (rwnx_hw->mod_params->use_80) {
+	    he_cap->ppe_thres[0] |= 0x20;
+	    he_cap->ppe_thres[2] |= 0xc0;
+	    he_cap->ppe_thres[3] |= 0x07;
 	}
 	//if (rwnx_hw->mod_params->use_80)
 	{
@@ -1387,6 +1397,11 @@ static void rwnx_set_he_capa(struct rwnx_hw *rwnx_hw, struct wiphy *wiphy)
 			he_cap->he_cap_elem.phy_cap_info[0] |=
 							IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_40MHZ_IN_2G;
 			he_cap->ppe_thres[0] |= 0x10;
+		}
+	        if (rwnx_hw->mod_params->use_80) {
+		    he_cap->ppe_thres[0] |= 0x20;
+		    he_cap->ppe_thres[2] |= 0xc0;
+	            he_cap->ppe_thres[3] |= 0x07;
 		}
 		//if (rwnx_hw->mod_params->use_80)
 		{
@@ -1682,6 +1697,12 @@ int rwnx_handle_dynparams(struct rwnx_hw *rwnx_hw, struct wiphy *wiphy)
     if (rwnx_hw->sdiodev->chipid == PRODUCT_ID_AIC8800D80) {
         rwnx_hw->mod_params->use_80 = true;    
     }
+    
+    if (rwnx_hw->sdiodev->chipid != PRODUCT_ID_AIC8800D80 &&
+        rwnx_hw->mod_params->he_mcs_map == IEEE80211_HE_MCS_SUPPORT_0_11) {
+        AICWFDBG(LOGINFO,"%s unsupport mcs11 change to mcs9", __func__);
+        rwnx_hw->mod_params->he_mcs_map = IEEE80211_HE_MCS_SUPPORT_0_9;
+    }
 
 	/* Set wiphy parameters */
 	rwnx_set_wiphy_params(rwnx_hw, wiphy);
@@ -1707,8 +1728,12 @@ void rwnx_custregd(struct rwnx_hw *rwnx_hw, struct wiphy *wiphy)
     if (!rwnx_hw->mod_params->custregd)
         return;
 
-    wiphy->regulatory_flags |= REGULATORY_IGNORE_STALE_KICKOFF;
-    wiphy->regulatory_flags |= REGULATORY_WIPHY_SELF_MANAGED;
+/* From kernel 6.1.0, this bit is removed and will be reused later */    
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))    
+     wiphy->regulatory_flags |= REGULATORY_IGNORE_STALE_KICKOFF;
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0) */
+
+     wiphy->regulatory_flags |= REGULATORY_WIPHY_SELF_MANAGED;
 
     rtnl_lock();
 	#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 12, 0)

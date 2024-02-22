@@ -377,14 +377,25 @@ enum mm_msg_tag {
 
     MM_APM_STALOSS_IND,
 
-    MM_SET_TXOP_REQ,
-    MM_SET_TXOP_CFM,
+    MM_SET_VENDOR_HWCONFIG_REQ,
+    MM_SET_VENDOR_HWCONFIG_CFM,
 
     MM_GET_FW_VERSION_REQ,
     MM_GET_FW_VERSION_CFM,
 
-    MM_SET_VENDOR_TRX_PARAM_REQ,
-    MM_SET_VENDOR_TRX_PARAM_CFM,
+    MM_SET_RESUME_RESTORE_REQ,
+    MM_SET_RESUME_RESTORE_CFM,
+
+    MM_GET_WIFI_DISABLE_REQ,
+    MM_GET_WIFI_DISABLE_CFM,
+
+    MM_CFG_RSSI_CFM,
+
+    MM_SET_VENDOR_SWCONFIG_REQ,
+    MM_SET_VENDOR_SWCONFIG_CFM,
+
+    MM_SET_TXPWR_LVL_ADJ_REQ,
+    MM_SET_TXPWR_LVL_ADJ_CFM,
 
     /// MAX number of messages
     MM_MAX,
@@ -1152,6 +1163,7 @@ struct mm_set_arpoffload_en_cfm {
 struct mm_set_agg_disable_req {
 	u8_l disable;
 	u8_l staidx;
+    u8_l disable_rx;
 };
 
 struct mm_set_coex_req {
@@ -1251,6 +1263,19 @@ typedef struct
     s8_l pwrlvl_11ax_5g[12];
 } txpwr_lvl_conf_v3_t;
 
+typedef struct
+{
+    u8_l enable;
+    s8_l pwrlvl_adj_tbl_2g4[3];
+    s8_l pwrlvl_adj_tbl_5g[6];
+} txpwr_lvl_adj_conf_t;
+
+typedef struct
+{
+    u8_l loss_enable;
+    u8_l loss_value;
+} txpwr_loss_conf_t;
+
 struct mm_set_txpwr_lvl_req
 {
   union {
@@ -1260,6 +1285,10 @@ struct mm_set_txpwr_lvl_req
   };
 };
 
+struct mm_set_txpwr_lvl_adj_req
+{
+    txpwr_lvl_adj_conf_t txpwr_lvl_adj;
+};
 
 typedef struct {
 	u8_l enable;
@@ -1289,6 +1318,36 @@ typedef struct {
 	s8_l chan_142_165;
 } txpwr_ofst_conf_t;
 
+/*
+ * pwrofst2x_tbl_2g4[3][3]:
+ * +---------------+----------+----------+----------+
+ * | RateTyp\ChGrp |  CH_1_4  |  CH_5_9  | CH_10_13 |
+ * +---------------+----------+----------+----------+
+ * | DSSS          |  [0][0]  |  [0][1]  |  [0][2]  |
+ * +---------------+----------+----------+----------+
+ * | OFDM_HIGHRATE |  [1][0]  |  [1][1]  |  [1][2]  |
+ * +---------------+----------+----------+----------+
+ * | OFDM_LOWRATE  |  [2][0]  |  [2][1]  |  [2][2]  |
+ * +---------------+----------+----------+----------+
+ * pwrofst2x_tbl_5g[3][6]:
+ * +---------------+--------------+--------------+----------------+----------------+----------------+----------------+
+ * | RateTyp\ChGrp | CH_42(36~50) | CH_58(51~64) | CH_106(98~114) | CH_122(115~130)| CH_138(131~146)| CH_155(147~166)|
+ * +---------------+--------------+--------------+----------------+----------------+----------------+----------------+
+ * | OFDM_LOWRATE  |    [0][0]    |    [0][1]    |     [0][2]     |     [0][3]     |     [0][4]     |     [0][5]     |
+ * +---------------+--------------+--------------+----------------+----------------+----------------+----------------+
+ * | OFDM_HIGHRATE |    [1][0]    |    [1][1]    |     [1][2]     |     [1][3]     |     [1][4]     |     [1][5]     |
+ * +---------------+--------------+--------------+----------------+----------------+----------------+----------------+
+ * | OFDM_MIDRATE  |    [2][0]    |    [2][1]    |     [2][2]     |     [2][3]     |     [2][4]     |     [2][5]     |
+ * +---------------+--------------+--------------+----------------+----------------+----------------+----------------+
+ */
+
+typedef struct
+{
+    int8_t enable;
+    int8_t pwrofst2x_tbl_2g4[3][3];
+    int8_t pwrofst2x_tbl_5g[3][6];
+} txpwr_ofst2x_conf_t;
+
 typedef struct
 {
     u8_l enable;
@@ -1298,7 +1357,10 @@ typedef struct
 
 
 struct mm_set_txpwr_ofst_req {
-	txpwr_ofst_conf_t txpwr_ofst;
+	union {
+	  txpwr_ofst_conf_t txpwr_ofst;
+	  txpwr_ofst2x_conf_t txpwr_ofst2x;
+	};
 };
 
 struct mm_set_stack_start_req {
@@ -1787,9 +1849,101 @@ struct me_traffic_ind_req {
 
 struct mm_apm_staloss_ind
 {
-        u8_l sta_idx;
-        u8_l vif_idx;
-        u8_l mac_addr[6];
+	u8_l sta_idx;
+	u8_l vif_idx;
+	u8_l mac_addr[6];
+};
+
+#ifdef CONFIG_SDIO_BT
+struct mm_bt_recv_ind
+{
+	u32_l data_len;
+	u8_l bt_data[1024];
+};
+#endif
+
+enum vendor_hwconfig_tag{
+	ACS_TXOP_REQ = 0,
+	CHANNEL_ACCESS_REQ,
+	MAC_TIMESCALE_REQ,
+	CCA_THRESHOLD_REQ,
+	BWMODE_REQ,
+	CHIP_TEMP_GET_REQ,
+};
+
+enum {
+    BWMODE20M = 0,
+    BWMODE10M,
+    BWMODE5M,
+};
+
+struct mm_set_acs_txop_req
+{
+    u32_l hwconfig_id;
+	u16_l txop_bk;
+	u16_l txop_be;
+	u16_l txop_vi;
+	u16_l txop_vo;
+};
+
+struct mm_set_channel_access_req
+{
+    u32_l hwconfig_id;
+	u32_l edca[4];
+	u8_l  vif_idx;
+	u8_l  retry_cnt;
+	u8_l  rts_en;
+	u8_l  long_nav_en;
+	u8_l  cfe_en;
+	u8_l  rc_retry_cnt[3];
+	s8_l ccademod_th;
+};
+
+struct mm_set_mac_timescale_req
+{
+    u32_l hwconfig_id;
+	u8_l  sifsA_time;
+	u8_l  sifsB_time;
+	u8_l  slot_time;
+	u8_l  rx_startdelay_ofdm;
+	u8_l  rx_startdelay_long;
+	u8_l  rx_startdelay_short;
+};
+
+struct mm_set_cca_threshold_req
+{
+    u32_l hwconfig_id;
+	u8_l  auto_cca_en;
+	s8_l  cca20p_rise_th;
+	s8_l  cca20s_rise_th;
+	s8_l  cca20p_fall_th;
+	s8_l  cca20s_fall_th;
+
+};
+
+struct mm_set_bwmode_req
+{
+    u32_l hwconfig_id;
+    u8_l bwmode;
+};
+
+struct mm_get_chip_temp_req
+{
+    u32_l hwconfig_id;
+};
+
+struct mm_get_chip_temp_cfm
+{
+    /// Temp degree val
+    s8_l degree;
+};
+
+struct mm_set_vendor_hwconfig_cfm
+{
+    u32_l hwconfig_id;
+    union {
+        struct mm_get_chip_temp_cfm chip_temp_cfm;
+    };
 };
 
 struct mm_set_txop_req
@@ -1807,6 +1961,84 @@ struct mm_get_fw_version_cfm
     u8_l fw_version_len;
     u8_l fw_version[63];
 };
+
+struct mm_get_wifi_disable_cfm
+{
+    u8_l wifi_disable;
+};
+
+enum vendor_swconfig_tag
+{
+    BCN_CFG_REQ = 0,
+    TEMP_COMP_SET_REQ,
+    TEMP_COMP_GET_REQ,
+};
+
+struct mm_set_bcn_cfg_req
+{
+    /// Ignore or not bcn tim bcmc bit
+    bool_l tim_bcmc_ignored_enable;
+};
+
+struct mm_set_bcn_cfg_cfm
+{
+    /// Request status
+    bool_l tim_bcmc_ignored_status;
+};
+
+struct mm_set_temp_comp_req
+{
+    /// Enable or not temp comp
+    u8_l enable;
+    u8_l reserved[3];
+    u32_l tmr_period_ms;
+};
+
+struct mm_set_temp_comp_cfm
+{
+    /// Request status
+    u8_l status;
+};
+
+struct mm_get_temp_comp_cfm
+{
+    /// Request status
+    u8_l status;
+    /// Temp degree val
+    s8_l degree;
+};
+
+struct mm_set_vendor_swconfig_req
+{
+    u32_l swconfig_id;
+    union {
+        struct mm_set_bcn_cfg_req bcn_cfg_req;
+        struct mm_set_temp_comp_req temp_comp_set_req;
+    };
+};
+
+struct mm_set_vendor_swconfig_cfm
+{
+    u32_l swconfig_id;
+    union {
+        struct mm_set_bcn_cfg_cfm bcn_cfg_cfm;
+        struct mm_set_temp_comp_cfm temp_comp_set_cfm;
+        struct mm_get_temp_comp_cfm temp_comp_get_cfm;
+    };
+};
+
+#ifdef CONFIG_SDIO_BT
+struct mm_bt_send_req
+{
+	u32_l data_len;
+	u8_l bt_data[1024];
+};
+
+struct mm_bt_send_cfm
+{
+	u8_l status;
+};
+#endif
 
 /// Structure containing the parameters of the @ref ME_RC_STATS_REQ message.
 struct me_rc_stats_req {
@@ -1932,10 +2164,15 @@ enum sm_msg_tag {
 	/// Response to external authentication request
 	SM_EXTERNAL_AUTH_REQUIRED_RSP,
 	/// Request to update assoc elements after FT over the air authentication
-    SM_FT_AUTH_IND,
-    /// Response to FT authentication with updated assoc elements
-    SM_FT_AUTH_RSP,
+	SM_FT_AUTH_IND,
+	/// Response to FT authentication with updated assoc elements
+	SM_FT_AUTH_RSP,
 
+	SM_RSP_TIMEOUT_IND,
+
+	SM_COEX_TS_TIMEOUT_IND,
+
+	SM_EXTERNAL_AUTH_REQUIRED_RSP_CFM,
 	/// MAX number of messages
 	SM_MAX,
 };
@@ -2682,6 +2919,12 @@ enum tdls_msg_tag {
 	TDLS_PEER_TRAFFIC_IND_REQ,
 	/// TDLS peer traffic indication confirmation.
 	TDLS_PEER_TRAFFIC_IND_CFM,
+
+#ifdef CONFIG_SDIO_BT
+	TDLS_SDIO_BT_SEND_REQ =  LMAC_FIRST_MSG(TASK_TDLS)+16,
+	TDLS_SDIO_BT_SEND_CFM,
+	TDLS_SDIO_BT_RECV_IND,
+#endif
 	/// MAX number of messages
 	TDLS_MAX
 };

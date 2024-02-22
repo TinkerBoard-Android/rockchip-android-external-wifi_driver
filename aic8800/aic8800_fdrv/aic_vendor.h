@@ -4,6 +4,7 @@
 #include <linux/types.h>
 
 #define GOOGLE_OUI     0x001A11
+#define BRCM_OUI       0x001018
 
 typedef enum {
 	START_MKEEP_ALIVE,

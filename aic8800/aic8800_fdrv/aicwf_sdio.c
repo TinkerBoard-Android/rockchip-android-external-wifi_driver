@@ -23,7 +23,10 @@
 #include "aicwf_rx_prealloc.h"
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 2, 0)
 #include <linux/pm_wakeirq.h>
+#else
+#include <linux/pm_wakeup.h>
 #endif
+#include "rwnx_wakelock.h"
 
 #ifdef CONFIG_INGENIC_T20
 #include "mach/jzmmc.h"
@@ -31,6 +34,10 @@
 #ifdef CONFIG_PLATFORM_ROCKCHIP
 #include <linux/rfkill-wlan.h>
 #endif
+#ifdef CONFIG_PLATFORM_ROCKCHIP2
+#include <linux/rfkill-wlan.h>
+#endif
+
 #include "aic_bsp_export.h"
 extern uint8_t scanning;
 
@@ -50,6 +57,13 @@ struct proc_dir_entry *wifi_suspend_node;
 int tx_aggr_counter = 32;
 module_param_named(tx_aggr_counter, tx_aggr_counter, int, 0644);
 
+#ifdef CONFIG_TX_NETIF_FLOWCTRL
+int tx_fc_low_water = AICWF_SDIO_TX_LOW_WATER;
+module_param_named(tx_fc_low_water, tx_fc_low_water, int, 0644);
+
+int tx_fc_high_water = AICWF_SDIO_TX_HIGH_WATER;
+module_param_named(tx_fc_high_water, tx_fc_high_water, int, 0644);
+#endif
 
 int aicwf_sdio_readb(struct aic_sdio_dev *sdiodev, uint regaddr, u8 *val)
 {
@@ -68,6 +82,21 @@ int aicwf_sdio_writeb(struct aic_sdio_dev *sdiodev, uint regaddr, u8 val)
 	sdio_release_host(sdiodev->func);
 	return ret;
 }
+
+#ifdef CONFIG_TX_NETIF_FLOWCTRL
+void aicwf_sdio_tx_netif_flowctrl(struct rwnx_hw *rwnx_hw, bool state)
+{
+    struct rwnx_vif *rwnx_vif;
+    list_for_each_entry(rwnx_vif, &rwnx_hw->vifs, list) {
+        if (! rwnx_vif->up)
+            continue;
+        if (state)
+            netif_tx_stop_all_queues(rwnx_vif->ndev);//netif_stop_queue(rwnx_vif->ndev);
+        else
+            netif_tx_wake_all_queues(rwnx_vif->ndev);//netif_wake_queue(rwnx_vif->ndev);
+    }
+}
+#endif
 
 int aicwf_sdio_flow_ctrl_msg(struct aic_sdio_dev *sdiodev)
 {
@@ -219,7 +248,7 @@ static u32 hostwake_irq_num;
 //static struct wakeup_source *ws_sdio_pwrctrl;
 //static struct wakeup_source *ws_tx_sdio;
 #ifdef CONFIG_GPIO_WAKEUP
-static struct wakeup_source *ws;
+//static struct wakeup_source *ws;
 #endif
 #else
 #ifdef ANDROID_PLATFORM
@@ -253,17 +282,16 @@ static struct wake_lock irq_wakelock;
 #endif
 #endif
 
-
+#if 0
 void rwnx_pm_stay_awake(struct aic_sdio_dev *sdiodev){
 
 #ifdef CONFIG_GPIO_WAKEUP
 	spin_lock_bh(&sdiodev->wslock);
 
-
-		//printk("%s active_count:%d relax_count:%d\r\n", __func__, (int)ws->active_count, (int)ws->relax_count);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0)
 		if(ws != NULL){
 			__pm_stay_awake(ws);
+            AICWFDBG(LOGWAKELOCK, "%s active_count:%d relax_count:%d\r\n", __func__, (int)ws->active_count, (int)ws->relax_count);
 		}
 #else
 #ifdef ANDROID_PLATFORM
@@ -282,11 +310,10 @@ void rwnx_pm_relax(struct aic_sdio_dev *sdiodev){
 #ifdef CONFIG_GPIO_WAKEUP
 	spin_lock_bh(&sdiodev->wslock);
 
-
-	//printk("%s active_count:%d relax_count:%d\r\n", __func__, (int)ws->active_count, (int)ws->relax_count);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0)
 	if(ws != NULL){
 		__pm_relax(ws);
+        AICWFDBG(LOGWAKELOCK, "%s active_count:%d relax_count:%d\r\n", __func__, (int)ws->active_count, (int)ws->relax_count);
 	}
 #else
 #ifdef ANDROID_PLATFORM
@@ -299,6 +326,8 @@ void rwnx_pm_relax(struct aic_sdio_dev *sdiodev){
 #endif
 
 }
+#endif
+
 
 #ifdef CONFIG_GPIO_WAKEUP
 
@@ -310,19 +339,25 @@ static irqreturn_t rwnx_hostwake_irq_handler(int irq, void *para)
 	static int wake_cnt;
 	wake_cnt++;
 
-#if 1
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0)
-	__pm_wakeup_event(ws, HZ);
+	rwnx_wakeup_lock_timeout(g_rwnx_plat->sdiodev->rwnx_hw->ws_rx, 1000);
 #else
 #ifdef ANDROID_PLATFORM
 	wake_lock_timeout(&irq_wakelock, HZ);
 #endif //ANDROID_PLATFORM
 #endif
+
+	AICWFDBG(LOGIRQ, "%s(%d): wake_irq_cnt = %d\n", __func__, __LINE__, wake_cnt);
+
+#ifdef CONFIG_OOB
+#if 0//old oob feature
+    complete(&g_rwnx_plat->sdiodev->bus_if->busrx_trgg);
+#else//new oob feature
+    if(g_rwnx_plat->sdiodev->oob_enable){
+        complete(&g_rwnx_plat->sdiodev->bus_if->busirq_trgg);
+    }
+#endif//old oob feature
 #endif
-
-	//rwnx_pm_stay_awake(g_rwnx_plat->sdiodev);
-
-	AICWFDBG(LOGDEBUG, "%s(%d): wake_irq_cnt = %d\n", __func__, __LINE__, wake_cnt);
 
 	return IRQ_HANDLED;
 }
@@ -337,8 +372,17 @@ static int rwnx_register_hostwake_irq(struct device *dev)
 {
 	int ret = 0;//-1;
 #ifdef CONFIG_GPIO_WAKEUP
+	unsigned long flag_edge;
+	struct aicbsp_feature_t aicwf_feature;
 	int irq_flags;
 //TODO hostwake_irq_num hostwake_irq_num and wakeup_enable
+
+	aicbsp_get_feature(&aicwf_feature, NULL);
+	if (aicwf_feature.irqf == 0)
+		flag_edge = IRQF_TRIGGER_RISING | IRQF_NO_SUSPEND;
+	else
+		flag_edge = IRQF_TRIGGER_FALLING | IRQF_NO_SUSPEND;
+
 
 #ifdef CONFIG_PLATFORM_ALLWINNER
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0)
@@ -358,17 +402,27 @@ static int rwnx_register_hostwake_irq(struct device *dev)
 		printk("%s irq_flags:%d \r\n", __func__, irq_flags);
 		wakeup_enable = 1;
 #endif //CONFIG_PLATFORM_ROCKCHIP
+    //For Rockchip
+#ifdef CONFIG_PLATFORM_ROCKCHIP2
+            hostwake_irq_num = rockchip_wifi_get_oob_irq();
+            printk("%s hostwake_irq_num:%d \r\n", __func__, hostwake_irq_num);
+            irq_flags = (IORESOURCE_IRQ | IORESOURCE_IRQ_HIGHLEVEL | IORESOURCE_IRQ_SHAREABLE) & IRQF_TRIGGER_MASK;
+            printk("%s irq_flags:%d \r\n", __func__, irq_flags);
+            wakeup_enable = 1;
+#endif //CONFIG_PLATFORM_ROCKCHIP
 
 
 
 	if (wakeup_enable) {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0)
-		ws = wakeup_source_register(dev, "wifisleep");
+		//ws = wakeup_source_register(dev, "wifisleep");
 		//ws_tx_sdio = wakeup_source_register(dev, "wifi_tx_sleep");
 		//ws_rx_sdio = wakeup_source_register(dev, "wifi_rx_sleep");
 		//ws_sdio_pwrctrl = wakeup_source_register(dev, "sdio_pwrctrl_sleep");
 #else
+#ifdef ANDROID_PLATFORM
 		wake_lock_init(&irq_wakelock, WAKE_LOCK_SUSPEND, "wifisleep");
+#endif
 #endif
 		ret = device_init_wakeup(dev, true);
 		if (ret < 0) {
@@ -384,9 +438,7 @@ static int rwnx_register_hostwake_irq(struct device *dev)
 			goto fail1;
 		}
 
-		ret = request_irq(hostwake_irq_num,
-				rwnx_hostwake_irq_handler, IRQF_TRIGGER_RISING | IRQF_NO_SUSPEND,
-				"rwnx_hostwake_irq", NULL);
+		ret = request_irq(hostwake_irq_num, rwnx_hostwake_irq_handler, flag_edge, "rwnx_hostwake_irq", NULL);
 
 		if (ret < 0) {
 			pr_err("%s(%d): request_irq fail! ret = %d\n", __func__, __LINE__, ret);
@@ -395,9 +447,11 @@ static int rwnx_register_hostwake_irq(struct device *dev)
 	}
 	//disable_irq(hostwake_irq_num);
 	rwnx_disable_hostwake_irq();
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 2, 0)
 	dev_pm_clear_wake_irq(dev);
+#endif
 	rwnx_enable_hostwake_irq();
-	printk("%s(%d)\n", __func__, __LINE__);
+	AICWFDBG(LOGINFO, "%s(%d)\n", __func__, __LINE__);
 	return ret;
 
 fail2:
@@ -407,12 +461,14 @@ fail2:
 fail1:
 	device_init_wakeup(dev, false);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0)
-	wakeup_source_unregister(ws);
+	//wakeup_source_unregister(ws);
 	//wakeup_source_unregister(ws_tx_sdio);
 	//wakeup_source_unregister(ws_rx_sdio);
 	//wakeup_source_unregister(ws_sdio_pwrctrl);
 #else
+#ifdef ANDROID_PLATFORM
 	wake_lock_destroy(&irq_wakelock);
+#endif
 #endif
 #endif//CONFIG_GPIO_WAKEUP
 	return ret;
@@ -430,7 +486,7 @@ static int rwnx_unregister_hostwake_irq(struct device *dev)
 	AICWFDBG(LOGERROR, "%s kernel unsupport this feature!\r\n", __func__);
 #endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0)
-		wakeup_source_unregister(ws);
+		//wakeup_source_unregister(ws);
 		//wakeup_source_unregister(ws_tx_sdio);
 		//wakeup_source_unregister(ws_rx_sdio);
 		//wakeup_source_unregister(ws_sdio_pwrctrl);
@@ -453,13 +509,13 @@ static int rwnx_enable_hostwake_irq(void)
 	enable_irq(hostwake_irq_num);
 	enable_irq_wake(hostwake_irq_num);
 #endif//CONFIG_GPIO_WAKEUP
-	printk("%s(%d)\n", __func__, __LINE__);
+	AICWFDBG(LOGINFO, "%s(%d)\n", __func__, __LINE__);
 	return 0;
 }
 
 static int rwnx_disable_hostwake_irq(void)
 {
-	printk("%s(%d)\n", __func__, __LINE__);
+	AICWFDBG(LOGINFO, "%s(%d)\n", __func__, __LINE__);
 #ifdef CONFIG_GPIO_WAKEUP
 	disable_irq_nosync(hostwake_irq_num);
 	//disable_irq_wake(hostwake_irq_num);
@@ -526,9 +582,21 @@ static int aicwf_sdio_probe(struct sdio_func *func,
 
 	err = aicwf_sdio_chipmatch(sdiodev, func->vendor, func->device);
 
-
 	sdiodev->func = func;
 	sdiodev->bus_if = bus_if;
+    
+#ifdef CONFIG_OOB
+    if(sdiodev->chipid == PRODUCT_ID_AIC8801){
+        AICWFDBG(LOGERROR, "%s ERROR!!! 8801 not support OOB \r\n", __func__);
+        sdiodev->oob_enable = false;
+    }else{    
+	    sdiodev->oob_enable = true;
+    }
+#else
+    sdiodev->oob_enable = false;
+#endif
+
+    atomic_set(&sdiodev->is_bus_suspend, 0);
 	bus_if->bus_priv.sdio = sdiodev;
 
 	dev_set_drvdata(&func->dev, bus_if);
@@ -560,11 +628,32 @@ static int aicwf_sdio_probe(struct sdio_func *func,
 		return err;
 
 #ifdef CONFIG_GPIO_WAKEUP
-	rwnx_send_me_set_lp_level(sdiodev->rwnx_hw, 1);
+#ifdef CONFIG_OOB
+    if(sdiodev->oob_enable){
+        AICWFDBG(LOGINFO, "%s SDIOWIFI_INTR_CONFIG_REG Disable\n", __func__);
+        sdio_claim_host(sdiodev->func);
+        //disable sdio interrupt    
+        err = aicwf_sdio_writeb(sdiodev, SDIOWIFI_INTR_CONFIG_REG, 0x0);
+        if (err < 0) {
+            sdio_err("reg:%d write failed!\n", SDIOWIFI_INTR_CONFIG_REG);
+        }    
+        sdio_release_irq(sdiodev->func);
+        sdio_release_host(sdiodev->func);
+#if 0      
+#if 0//old oob feature
+        sdiodev->oob_enable = true;
+#else//new oob feature
+        sdiodev->oob_enable = true;
+#endif//old oob feature
+#endif
+    }
+#endif
+
 #ifdef CONFIG_WIFI_SUSPEND_FOR_LINUX
 	rwnx_init_wifi_suspend_node();
 #endif//CONFIG_WIFI_SUSPEND_FOR_LINUX
 #endif//CONFIG_GPIO_WAKEUP
+    device_disable_async_suspend(sdiodev->dev);
 
 	return 0;
 fail:
@@ -600,10 +689,11 @@ static void aicwf_sdio_remove(struct sdio_func *func)
 	if (!sdiodev) {
 		return;
 	}
-	rwnx_unregister_hostwake_irq(sdiodev->dev);
+
 	sdiodev->bus_if->state = BUS_DOWN_ST;
 	aicwf_sdio_release(sdiodev);
 	aicwf_sdio_func_deinit(sdiodev);
+	rwnx_unregister_hostwake_irq(sdiodev->dev);
 	dev_set_drvdata(&sdiodev->func->dev, NULL);
 	kfree(sdiodev);
 	kfree(bus_if);
@@ -641,7 +731,7 @@ static int aicwf_sdio_suspend(struct device *dev)
 		return ret;
 	}
 
-#if 1
+
 	while (sdiodev->state == SDIO_ACTIVE_ST) {
 		if (down_interruptible(&sdiodev->tx_priv->txctl_sema))
 			continue;
@@ -654,18 +744,24 @@ static int aicwf_sdio_suspend(struct device *dev)
 #ifdef CONFIG_GPIO_WAKEUP
 //	rwnx_enable_hostwake_irq();
 #endif
-#endif
-#if 0
-	sdio_dbg("%s SDIOWIFI_INTR_CONFIG_REG Disable\n", __func__);
-	sdio_claim_host(sdiodev->func);
-	//disable sdio interrupt
-	ret = aicwf_sdio_writeb(sdiodev, SDIOWIFI_INTR_CONFIG_REG, 0x0);
-	if (ret < 0) {
-		sdio_err("reg:%d write failed!\n", SDIOWIFI_INTR_CONFIG_REG);
+
+
+#if defined(CONFIG_PLATFORM_ROCKCHIP) || defined(CONFIG_PLATFORM_ROCKCHIP2)
+	if(sdiodev->chipid == PRODUCT_ID_AIC8801){
+		sdio_dbg("%s SDIOWIFI_INTR_CONFIG_REG Disable\n", __func__);
+		sdio_claim_host(sdiodev->func);
+		//disable sdio interrupt
+		ret = aicwf_sdio_writeb(sdiodev, SDIOWIFI_INTR_CONFIG_REG, 0x0);
+		if (ret < 0) {
+			sdio_err("reg:%d write failed!\n", SDIOWIFI_INTR_CONFIG_REG);
+		}
+		sdio_release_irq(sdiodev->func);
+		sdio_release_host(sdiodev->func);
 	}
-	sdio_release_irq(sdiodev->func);
-	sdio_release_host(sdiodev->func);
 #endif
+    atomic_set(&sdiodev->is_bus_suspend, 1);
+//    smp_mb();
+
 	sdio_dbg("%s exit\n", __func__);
 
 	return 0;
@@ -676,12 +772,14 @@ static int aicwf_sdio_resume(struct device *dev)
 	struct aicwf_bus *bus_if = dev_get_drvdata(dev);
 	struct aic_sdio_dev *sdiodev = bus_if->bus_priv.sdio;
 	struct rwnx_vif *rwnx_vif, *tmp;
-	//int ret;
+#if defined(CONFIG_PLATFORM_ROCKCHIP) || defined(CONFIG_PLATFORM_ROCKCHIP2)
+	int ret;
+#endif
 
 	sdio_dbg("%s enter \n", __func__);
-#ifdef CONFIG_GPIO_WAKEUP
+//#ifdef CONFIG_GPIO_WAKEUP
 //	rwnx_disable_hostwake_irq();
-#endif
+//#endif
 	//dev_pm_clear_wake_irq(dev);
 	list_for_each_entry_safe(rwnx_vif, tmp, &sdiodev->rwnx_hw->vifs, list) {
 		if (rwnx_vif->ndev)
@@ -691,6 +789,7 @@ static int aicwf_sdio_resume(struct device *dev)
 	#if defined(CONFIG_SDIO_PWRCTRL)
 	aicwf_sdio_pwr_stctl(sdiodev, SDIO_ACTIVE_ST);
 	#endif
+
 	#ifdef CONFIG_WIFI_SUSPEND_FOR_LINUX
 	rwnx_set_wifi_suspend('0');
 	#endif//CONFIG_WIFI_SUSPEND_FOR_LINUX
@@ -698,18 +797,21 @@ static int aicwf_sdio_resume(struct device *dev)
 
 //	aicwf_sdio_hal_irqhandler(sdiodev->func);
 
-#if 0
-	sdio_dbg("%s SDIOWIFI_INTR_CONFIG_REG Enable\n", __func__);
-	sdio_claim_host(sdiodev->func);
-	sdio_claim_irq(sdiodev->func, aicwf_sdio_hal_irqhandler);
+#if defined(CONFIG_PLATFORM_ROCKCHIP) || defined(CONFIG_PLATFORM_ROCKCHIP2)
+	if(sdiodev->chipid == PRODUCT_ID_AIC8801){
+		sdio_dbg("%s SDIOWIFI_INTR_CONFIG_REG Enable\n", __func__);
+		sdio_claim_host(sdiodev->func);
+		sdio_claim_irq(sdiodev->func, aicwf_sdio_hal_irqhandler);
 
-	//enable sdio interrupt
-	ret = aicwf_sdio_writeb(sdiodev, SDIOWIFI_INTR_CONFIG_REG, 0x07);
-	if (ret != 0)
-		sdio_err("intr register failed:%d\n", ret);
-	sdio_release_host(sdiodev->func);
+		//enable sdio interrupt
+		ret = aicwf_sdio_writeb(sdiodev, SDIOWIFI_INTR_CONFIG_REG, 0x07);
+		if (ret != 0)
+			sdio_err("intr register failed:%d\n", ret);
+		sdio_release_host(sdiodev->func);
+	}
 #endif
-
+    atomic_set(&sdiodev->is_bus_suspend, 0);
+//    smp_mb();
 
 	sdio_dbg("%s exit\n", __func__);
 	return 0;
@@ -844,7 +946,7 @@ int aicwf_sdio_wakeup(struct aic_sdio_dev *sdiodev)
 	int ret = 0;
 	int read_retry;
 	int write_retry = 20;
-    int wakeup_reg_val;
+    int wakeup_reg_val = 0;
 
     if (sdiodev->chipid == PRODUCT_ID_AIC8801 ||
         sdiodev->chipid == PRODUCT_ID_AIC8800DC ||
@@ -855,9 +957,9 @@ int aicwf_sdio_wakeup(struct aic_sdio_dev *sdiodev)
     }
 
 	if (sdiodev->state == SDIO_SLEEP_ST) {
-		sdio_info("%s w\n", __func__);
+		AICWFDBG(LOGSDPWRC, "%s w\n", __func__);
 
-		rwnx_pm_stay_awake(sdiodev);
+		//rwnx_pm_stay_awake(sdiodev);
 
 		while (write_retry) {
 			ret = aicwf_sdio_writeb(sdiodev, sdiodev->sdio_reg.wakeup_reg, wakeup_reg_val);
@@ -909,17 +1011,17 @@ int aicwf_sdio_sleep_allow(struct aic_sdio_dev *sdiodev)
 	sdio_info("sleep: %d, %d\n", sdiodev->state, scanning);
 	if (sdiodev->state == SDIO_ACTIVE_ST  && !scanning && !rwnx_hw->is_p2p_alive \
 				&& !rwnx_hw->is_p2p_connected) {
-		sdio_info("%s s\n", __func__);
+		AICWFDBG(LOGSDPWRC, "%s s\n", __func__);
 		ret = aicwf_sdio_writeb(sdiodev, sdiodev->sdio_reg.sleep_reg, 0x10);
 		if (ret)
 			sdio_err("Write sleep fail!\n");
 		sdiodev->state = SDIO_SLEEP_ST;
 		aicwf_sdio_pwrctl_timer(sdiodev, 0);
+        //rwnx_pm_relax(sdiodev);
 	} else {
 		aicwf_sdio_pwrctl_timer(sdiodev, sdiodev->active_duration);
 	}
 
-	rwnx_pm_relax(sdiodev);
 	return ret;
 }
 
@@ -1183,6 +1285,9 @@ static int aicwf_sdio_tx_msg(struct aic_sdio_dev *sdiodev)
 static void aicwf_sdio_tx_process(struct aic_sdio_dev *sdiodev)
 {
 	int err = 0;
+#ifdef CONFIG_TX_NETIF_FLOWCTRL
+	unsigned long flags;
+#endif
 
 	if (sdiodev->bus_if->state == BUS_DOWN_ST) {
 		sdio_err("Bus is down\n");
@@ -1247,6 +1352,19 @@ static void aicwf_sdio_tx_process(struct aic_sdio_dev *sdiodev)
         	}
 	}
 
+#ifdef CONFIG_TX_NETIF_FLOWCTRL
+	spin_lock_irqsave(&sdiodev->tx_flow_lock, flags);
+	if (atomic_read(&sdiodev->tx_priv->tx_pktcnt) < tx_fc_low_water) {
+		//printk("sdiodev->tx_priv->tx_pktcnt < tx_fc_low_water:%d %d\r\n",
+		//	  atomic_read(&sdiodev->tx_priv->tx_pktcnt), tx_fc_low_water);
+		if (sdiodev->flowctrl) {
+			sdiodev->flowctrl = 0;
+			aicwf_sdio_tx_netif_flowctrl(sdiodev->rwnx_hw, false);
+		}
+	}
+	spin_unlock_irqrestore(&sdiodev->tx_flow_lock, flags);
+#endif
+
 	up(&sdiodev->tx_priv->txctl_sema);
 }
 
@@ -1258,6 +1376,9 @@ static int aicwf_sdio_bus_txdata(struct device *dev, struct sk_buff *pkt)
     int headroom = 0;
     struct aicwf_bus *bus_if = dev_get_drvdata(dev);
     struct aic_sdio_dev *sdiodev = bus_if->bus_priv.sdio;
+#ifdef CONFIG_TX_NETIF_FLOWCTRL
+	unsigned long flags;
+#endif
 
     if (bus_if->state == BUS_DOWN_ST) {
         sdio_err("bus_if stopped\n");
@@ -1279,6 +1400,7 @@ static int aicwf_sdio_bus_txdata(struct device *dev, struct sk_buff *pkt)
         consume_skb(pkt);
         spin_unlock_bh(&sdiodev->tx_priv->txqlock);
         return -ENOSR;
+		goto flowctrl;
     } else {
     	ret = 0;
     }
@@ -1286,6 +1408,20 @@ static int aicwf_sdio_bus_txdata(struct device *dev, struct sk_buff *pkt)
     atomic_inc(&sdiodev->tx_priv->tx_pktcnt);
     spin_unlock_bh(&sdiodev->tx_priv->txqlock);
     complete(&bus_if->bustx_trgg);
+
+	flowctrl:
+#ifdef CONFIG_TX_NETIF_FLOWCTRL
+	spin_lock_irqsave(&sdiodev->tx_flow_lock, flags);
+	if (atomic_read(&sdiodev->tx_priv->tx_pktcnt) >= tx_fc_high_water) {
+		//printk("sdiodev->tx_priv->tx_pktcnt >= tx_fc_high_water:%d %d\r\n",
+		//	atomic_read(&sdiodev->tx_priv->tx_pktcnt), tx_fc_high_water);
+		if (!sdiodev->flowctrl) {
+			sdiodev->flowctrl = 1;
+			aicwf_sdio_tx_netif_flowctrl(sdiodev->rwnx_hw, true);
+		}
+	}
+	spin_unlock_irqrestore(&sdiodev->tx_flow_lock, flags);
+#endif
 
     return ret;
 }
@@ -1331,6 +1467,9 @@ int aicwf_sdio_send(struct aicwf_tx_priv *tx_priv, u8 txnow)
 	struct sk_buff *pkt;
 	struct aic_sdio_dev *sdiodev = tx_priv->sdiodev;
 	u32 aggr_len = 0;
+#ifdef CONFIG_TX_NETIF_FLOWCTRL
+	unsigned long flags;
+#endif
 
 	aggr_len = (tx_priv->tail - tx_priv->head);
 	if (((atomic_read(&tx_priv->aggr_count) == 0) && (aggr_len != 0))
@@ -1355,6 +1494,19 @@ int aicwf_sdio_send(struct aicwf_tx_priv *tx_priv, u8 txnow)
 		}
 		atomic_dec(&sdiodev->tx_priv->tx_pktcnt);
 		spin_unlock_bh(&sdiodev->tx_priv->txqlock);
+
+#ifdef CONFIG_TX_NETIF_FLOWCTRL
+		spin_lock_irqsave(&sdiodev->tx_flow_lock, flags);
+		if (atomic_read(&sdiodev->tx_priv->tx_pktcnt) < tx_fc_low_water) {
+			//printk("sdiodev->tx_priv->tx_pktcnt < tx_fc_low_water:%d %d\r\n",
+			//	  atomic_read(&sdiodev->tx_priv->tx_pktcnt), tx_fc_low_water);
+			if (sdiodev->flowctrl) {
+				sdiodev->flowctrl = 0;
+				aicwf_sdio_tx_netif_flowctrl(sdiodev->rwnx_hw, false);
+			}
+		}
+		spin_unlock_irqrestore(&sdiodev->tx_flow_lock, flags);
+#endif
 
 		if (tx_priv == NULL || tx_priv->tail == NULL || pkt == NULL)
 			txrx_err("null error\n");
@@ -1386,8 +1538,8 @@ int aicwf_sdio_aggr(struct aicwf_tx_priv *tx_priv, struct sk_buff *pkt)
 	int allign_len = 0;
 	int headroom;
 
-	sdio_header[0] = ((pkt->len - sizeof(struct rwnx_txhdr) + sizeof(struct txdesc_api)) & 0xff);
-	sdio_header[1] = (((pkt->len - sizeof(struct rwnx_txhdr) + sizeof(struct txdesc_api)) >> 8)&0x0f);
+	sdio_header[0] = ((pkt->len - txhdr->sw_hdr->headroom + sizeof(struct txdesc_api)) & 0xff);
+	sdio_header[1] = (((pkt->len - txhdr->sw_hdr->headroom + sizeof(struct txdesc_api)) >> 8)&0x0f);
 	sdio_header[2] = 0x01; //data
 	if (tx_priv->sdiodev->chipid == PRODUCT_ID_AIC8801 || 
         tx_priv->sdiodev->chipid == PRODUCT_ID_AIC8800DC ||
@@ -1499,7 +1651,7 @@ static int aicwf_sdio_bus_start(struct device *dev)
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
 #include "uapi/linux/sched/types.h"
-#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0))
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0))
 #include "linux/sched/types.h"
 #else
 #include "linux/sched/rt.h"
@@ -1513,71 +1665,254 @@ module_param_named(busrx_thread_prio, busrx_thread_prio, int, 0644);
 //module_param(busrx_thread_prio, int, 0);
 #endif
 
+#ifdef CONFIG_OOB
+int rx_thread_wait_to = 1000;
+module_param_named(rx_thread_wait_to, rx_thread_wait_to, int, 0644);
+
+//new oob feature
+int sdio_busirq_thread(void *data){
+        struct aicwf_rx_priv *rx_priv = (struct aicwf_rx_priv *)data;
+        struct aicwf_bus *bus_if = rx_priv->sdiodev->bus_if;
+#if 0    
+#ifdef CONFIG_THREAD_INFO_IN_TASK
+        int set_cpu_ret = 0;
+       
+        AICWFDBG(LOGINFO, "%s the cpu is:%d\n", __func__, current->cpu);
+        set_cpu_ret = set_cpus_allowed_ptr(current, cpumask_of(0));
+        AICWFDBG(LOGINFO, "%s set_cpu_ret is:%d\n", __func__, set_cpu_ret);
+        AICWFDBG(LOGINFO, "%s change cpu to:%d\n", __func__, current->cpu);
+#endif
+#endif
+
+#ifdef CONFIG_TXRX_THREAD_PRIO
+        if (busrx_thread_prio > 0) {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 9, 0))
+            sched_set_fifo_low(current);
+#else
+            struct sched_param param;
+            param.sched_priority = (busrx_thread_prio - 1 < MAX_RT_PRIO)?busrx_thread_prio:(MAX_RT_PRIO-1);
+            sched_setscheduler(current, SCHED_FIFO, &param);
+#endif
+        }
+#endif
+
+        AICWFDBG(LOGINFO, "%s the policy of current thread is:%d\n", __func__, current->policy);
+        AICWFDBG(LOGINFO, "%s the rt_priority of current thread is:%d\n", __func__, current->rt_priority);
+        AICWFDBG(LOGINFO, "%s the current pid is:%d\n", __func__, current->pid);
+    
+    
+    while (1) {
+            if (kthread_should_stop()) {
+                AICWFDBG(LOGERROR, "sdio busirq thread stop\n");
+                break;
+            }
+
+            if(!wait_for_completion_timeout(&bus_if->busirq_trgg, msecs_to_jiffies(rx_thread_wait_to))){
+                AICWFDBG(LOGRXPOLL, "%s wait for completion timout \r\n", __func__);
+            }
+       
+            if (bus_if->state == BUS_DOWN_ST)
+                continue;
+#if 1
+#ifdef CONFIG_SDIO_PWRCTRL
+            while(atomic_read(&bus_if->bus_priv.sdio->is_bus_suspend) == 1){
+                AICWFDBG(LOGDEBUG, "%s waiting for sdio bus resume \r\n", __func__);
+                msleep(100);
+            }
+            aicwf_sdio_pwr_stctl(bus_if->bus_priv.sdio, SDIO_ACTIVE_ST);
+#endif//CONFIG_SDIO_PWRCTRL
+#endif
+            aicwf_sdio_hal_irqhandler(bus_if->bus_priv.sdio->func);
+        }
+
+    return 0;
+}
+
+#endif//CONFIG_OOB
+
+#if 0
+#include <linux/sched.h>
+#endif
 int sdio_bustx_thread(void *data)
 {
 	struct aicwf_bus *bus = (struct aicwf_bus *) data;
 	struct aic_sdio_dev *sdiodev = bus->bus_priv.sdio;
+#if 0    
+#ifdef CONFIG_THREAD_INFO_IN_TASK
+    int set_cpu_ret = 0;
 
+    AICWFDBG(LOGINFO, "%s the cpu is:%d\n", __func__, current->cpu);
+    set_cpu_ret = set_cpus_allowed_ptr(current, cpumask_of(1));
+    AICWFDBG(LOGINFO, "%s set_cpu_ret is:%d\n", __func__, set_cpu_ret);
+    AICWFDBG(LOGINFO, "%s change cpu to:%d\n", __func__, current->cpu);
+#endif
+#endif
+
+#if 0
+	struct cpumask cpumask;
+	cpumask_clear(&cpumask);
+	cpumask_set_cpu(1, &cpumask);
+	cpumask_set_cpu(2, &cpumask);
+	cpumask_set_cpu(3, &cpumask);
+	sched_setaffinity(0, &cpumask);//need to add EXPORT_SYMBOL_GPL(sched_setaffinity) in kernel/sched/core.c
+#endif
 #ifdef CONFIG_TXRX_THREAD_PRIO
 		if (bustx_thread_prio > 0) {
-				struct sched_param param;
-				param.sched_priority = (bustx_thread_prio < MAX_RT_PRIO)?bustx_thread_prio:(MAX_RT_PRIO-1);
-				sched_setscheduler(current, SCHED_FIFO, &param);
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 9, 0))
+            sched_set_fifo_low(current);
+#else
+            struct sched_param param;
+            param.sched_priority = (bustx_thread_prio < MAX_RT_PRIO)?bustx_thread_prio:(MAX_RT_PRIO-1);
+            sched_setscheduler(current, SCHED_FIFO, &param);
+#endif
 		}
 #endif
 
+    AICWFDBG(LOGINFO, "%s the policy of current thread is:%d\n", __func__, current->policy);
+    AICWFDBG(LOGINFO, "%s the rt_priority of current thread is:%d\n", __func__, current->rt_priority);
+    AICWFDBG(LOGINFO, "%s the current pid is:%d\n", __func__, current->pid);
 
 	while (1) {
 		if (kthread_should_stop()) {
 			AICWFDBG(LOGERROR, "sdio bustx thread stop\n");
 			break;
 		}
-	if (!wait_for_completion_interruptible(&bus->bustx_trgg)) {
+        
+	    if (!wait_for_completion_interruptible(&bus->bustx_trgg)) {
 			if (sdiodev->bus_if->state == BUS_DOWN_ST)
 				continue;
+
+            rwnx_wakeup_lock(sdiodev->rwnx_hw->ws_tx);
 			if ((int)(atomic_read(&sdiodev->tx_priv->tx_pktcnt) > 0) || (sdiodev->tx_priv->cmd_txstate == true)){
-				rwnx_pm_stay_awake(sdiodev);
 				aicwf_sdio_tx_process(sdiodev);
-				rwnx_pm_relax(sdiodev);
 			}
+            rwnx_wakeup_unlock(sdiodev->rwnx_hw->ws_tx);
 		}
 	}
 
 	return 0;
 }
 
-
+#if 0//old oob feature
 int sdio_busrx_thread(void *data)
 {
-	struct aicwf_rx_priv *rx_priv = (struct aicwf_rx_priv *)data;
-	struct aicwf_bus *bus_if = rx_priv->sdiodev->bus_if;
-
-#ifdef CONFIG_TXRX_THREAD_PRIO
-		if (busrx_thread_prio > 0) {
-				struct sched_param param;
-				param.sched_priority = (busrx_thread_prio < MAX_RT_PRIO)?busrx_thread_prio:(MAX_RT_PRIO-1);
-				sched_setscheduler(current, SCHED_FIFO, &param);
-		}
+    struct aicwf_rx_priv *rx_priv = (struct aicwf_rx_priv *)data;
+    struct aicwf_bus *bus_if = rx_priv->sdiodev->bus_if;
+#if 0
+	struct cpumask cpumask;
+	cpumask_clear(&cpumask);
+	cpumask_set_cpu(1, &cpumask);
+	cpumask_set_cpu(2, &cpumask);
+	cpumask_set_cpu(3, &cpumask);
+	sched_setaffinity(0, &cpumask);
 #endif
+#ifdef CONFIG_TXRX_THREAD_PRIO
+    if (busrx_thread_prio > 0) {
+            struct sched_param param;
+            param.sched_priority = (busrx_thread_prio < MAX_RT_PRIO)?busrx_thread_prio:(MAX_RT_PRIO-1);
+            sched_setscheduler(current, SCHED_FIFO, &param);
+    }
+#endif
+    
+    AICWFDBG(LOGINFO, "%s the policy of current thread is:%d\n", __func__, current->policy);
+    AICWFDBG(LOGINFO, "%s the rt_priority of current thread is:%d\n", __func__, current->rt_priority);
+    AICWFDBG(LOGINFO, "%s the current pid is:%d\n", __func__, current->pid);
+    
+while (1) {
+    if (kthread_should_stop()) {
+        AICWFDBG(LOGERROR, "sdio busrx thread stop\n");
+        break;
+    }
+#ifndef CONFIG_OOB
+        if (!wait_for_completion_interruptible(&bus_if->busrx_trgg)) {
+#else
+        if(!wait_for_completion_timeout(&bus_if->busrx_trgg, msecs_to_jiffies(rx_thread_wait_to))){
+            AICWFDBG(LOGDEBUG, "%s wait for completion timout \r\n", __func__);
+        }
+#endif
+        if (bus_if->state == BUS_DOWN_ST)
+            continue;
+#ifdef CONFIG_OOB
+#ifdef CONFIG_SDIO_PWRCTRL
+        while(atomic_read(&bus_if->bus_priv.sdio->is_bus_suspend) == 1){
+            AICWFDBG(LOGDEBUG, "%s waiting for sdio bus resume \r\n", __func__);
+            msleep(100);
+        }
+        aicwf_sdio_pwr_stctl(bus_if->bus_priv.sdio, SDIO_ACTIVE_ST);
+#endif//CONFIG_SDIO_PWRCTRL
+        aicwf_sdio_hal_irqhandler(bus_if->bus_priv.sdio->func);
+#endif//CONFIG_OOB
+        rwnx_wakeup_lock(rx_priv->sdiodev->rwnx_hw->ws_rx);
+        aicwf_process_rxframes(rx_priv);
+        rwnx_wakeup_unlock(rx_priv->sdiodev->rwnx_hw->ws_rx);
+#ifndef CONFIG_OOB
+        }
+#endif
+    }
+    
+    return 0;
 
-
-	while (1) {
-		if (kthread_should_stop()) {
-			AICWFDBG(LOGERROR, "sdio busrx thread stop\n");
-			break;
-		}
-		if (!wait_for_completion_interruptible(&bus_if->busrx_trgg)) {
-
-			if (bus_if->state == BUS_DOWN_ST)
-				continue;
-			rwnx_pm_stay_awake(rx_priv->sdiodev);
-			aicwf_process_rxframes(rx_priv);
-			rwnx_pm_relax(rx_priv->sdiodev);
-		}
-	}
-
-	return 0;
 }
+#else//new oob feature
+int sdio_busrx_thread(void *data)
+{
+    struct aicwf_rx_priv *rx_priv = (struct aicwf_rx_priv *)data;
+    struct aicwf_bus *bus_if = rx_priv->sdiodev->bus_if;
+    
+    
+#if 0
+	struct cpumask cpumask;
+	cpumask_clear(&cpumask);
+	cpumask_set_cpu(1, &cpumask);
+	cpumask_set_cpu(2, &cpumask);
+	cpumask_set_cpu(3, &cpumask);
+	sched_setaffinity(0, &cpumask);
+#endif
+#if 0
+#ifdef CONFIG_THREAD_INFO_IN_TASK
+    int set_cpu_ret = 0;
+
+    AICWFDBG(LOGINFO, "%s the cpu is:%d\n", __func__, current->cpu);
+    set_cpu_ret = set_cpus_allowed_ptr(current, cpumask_of(2));
+    AICWFDBG(LOGINFO, "%s set_cpu_ret is:%d\n", __func__, set_cpu_ret);
+    AICWFDBG(LOGINFO, "%s change cpu to:%d\n", __func__, current->cpu);
+#endif
+#endif
+#ifdef CONFIG_TXRX_THREAD_PRIO
+    if (busrx_thread_prio > 0) {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 9, 0))
+        sched_set_fifo_low(current);
+#else
+        struct sched_param param;
+        param.sched_priority = (busrx_thread_prio < MAX_RT_PRIO)?busrx_thread_prio:(MAX_RT_PRIO-1);
+        sched_setscheduler(current, SCHED_FIFO, &param);
+#endif
+    }
+#endif
+    
+    AICWFDBG(LOGINFO, "%s the policy of current thread is:%d\n", __func__, current->policy);
+    AICWFDBG(LOGINFO, "%s the rt_priority of current thread is:%d\n", __func__, current->rt_priority);
+    AICWFDBG(LOGINFO, "%s the current pid is:%d\n", __func__, current->pid);
+    
+    while (1) {
+        if (kthread_should_stop()) {
+            AICWFDBG(LOGERROR, "sdio busrx thread stop\n");
+            break;
+        }
+        if (!wait_for_completion_interruptible(&bus_if->busrx_trgg)) {
+
+            if (bus_if->state == BUS_DOWN_ST)
+                continue;
+            rwnx_wakeup_lock(rx_priv->sdiodev->rwnx_hw->ws_rx);
+            aicwf_process_rxframes(rx_priv);
+            rwnx_wakeup_unlock(rx_priv->sdiodev->rwnx_hw->ws_rx);
+        }
+    }
+    return 0;
+
+}
+
+#endif//old oob feature
 
 #if defined(CONFIG_SDIO_PWRCTRL)
 static int aicwf_sdio_pwrctl_thread(void *data)
@@ -1594,11 +1929,16 @@ static int aicwf_sdio_pwrctl_thread(void *data)
 
 			if (sdiodev->bus_if->state == BUS_DOWN_ST)
 				continue;
+
+            rwnx_wakeup_lock(sdiodev->rwnx_hw->ws_pwrctrl);
+            
 			if ((int)(atomic_read(&sdiodev->tx_priv->tx_pktcnt) <= 0) && (sdiodev->tx_priv->cmd_txstate == false) && \
 					atomic_read(&sdiodev->rx_priv->rx_cnt) == 0)
 				aicwf_sdio_pwr_stctl(sdiodev, SDIO_SLEEP_ST);
 			else
 				aicwf_sdio_pwrctl_timer(sdiodev, sdiodev->active_duration);
+
+            rwnx_wakeup_unlock(sdiodev->rwnx_hw->ws_pwrctrl);
 		}
 	}
 
@@ -1674,29 +2014,25 @@ void aicwf_sdio_hal_irqhandler(struct sdio_func *func)
 	int ret;
 
 	//AICWFDBG(LOGDEBUG, "fdrv %s enter \r\n", __func__);
-
-	if ((int)(atomic_read(&sdiodev->irq_sdio_atomic)) > 0){
-		printk("%s conflict return it\r\n", __func__);
-		return;
-	}else{
-		atomic_inc(&sdiodev->irq_sdio_atomic);
-	}
+    rwnx_wakeup_lock(sdiodev->rwnx_hw->ws_irqrx);
 
 
 	if (!bus_if || bus_if->state == BUS_DOWN_ST) {
 		sdio_err("bus err\n");
-		atomic_dec(&sdiodev->irq_sdio_atomic);
+        rwnx_wakeup_unlock(sdiodev->rwnx_hw->ws_irqrx);
 		return;
 	}
 
+#ifdef CONFIG_PREALLOC_RX_SKB
+	if (list_empty(&aic_rx_buff_list.rxbuff_list)) {
+		printk("%s %d, rxbuff list is empty\n", __func__, __LINE__);
+		rwnx_wakeup_unlock(sdiodev->rwnx_hw->ws_irqrx);
+		return;
+	}
+#endif
+
     if (sdiodev->chipid == PRODUCT_ID_AIC8801 || sdiodev->chipid == PRODUCT_ID_AIC8800DC ||
         sdiodev->chipid == PRODUCT_ID_AIC8800DW) {
-    	#ifdef CONFIG_PREALLOC_RX_SKB
-    	if (list_empty(&aic_rx_buff_list.rxbuff_list)) {
-            printk("%s %d, rxbuff list is empty\n", __func__, __LINE__);
-            return;
-        }
-    	#endif
     	ret = aicwf_sdio_readb(sdiodev, sdiodev->sdio_reg.block_cnt_reg, &intstatus);
     	while (ret || (intstatus & SDIO_OTHER_INTERRUPT)) {
     		sdio_err("ret=%d, intstatus=%x\r\n", ret, intstatus);
@@ -1721,7 +2057,10 @@ void aicwf_sdio_hal_irqhandler(struct sdio_func *func)
     	if (pkt)
     		aicwf_sdio_enq_rxpkt(sdiodev, pkt);
 
-    	complete(&bus_if->busrx_trgg);
+        if(atomic_read(&sdiodev->rx_priv->rx_cnt) == 1){
+            complete(&bus_if->busrx_trgg);
+        }
+
     }else if (sdiodev->chipid == PRODUCT_ID_AIC8800D80) {
         do {
             ret = aicwf_sdio_readb(sdiodev, sdiodev->sdio_reg.misc_int_status_reg, &intstatus);
@@ -1779,11 +2118,12 @@ void aicwf_sdio_hal_irqhandler(struct sdio_func *func)
         if (pkt)
             aicwf_sdio_enq_rxpkt(sdiodev, pkt);
 
-        if(atomic_read(&sdiodev->rx_priv->rx_cnt) == 1)
+        if(atomic_read(&sdiodev->rx_priv->rx_cnt) == 1){
             complete(&bus_if->busrx_trgg);
+        }
     }
 
-	atomic_dec(&sdiodev->irq_sdio_atomic);
+    rwnx_wakeup_unlock(sdiodev->rwnx_hw->ws_irqrx);
 }
 
 #if defined(CONFIG_SDIO_PWRCTRL)
@@ -1818,21 +2158,25 @@ static struct aicwf_bus_ops aicwf_sdio_bus_ops = {
 void aicwf_sdio_release(struct aic_sdio_dev *sdiodev)
 {
 	struct aicwf_bus *bus_if;
-	int ret;
+#ifdef CONFIG_OOB
+    int ret;
+#endif
 	AICWFDBG(LOGINFO, "%s Enter\n", __func__);
 
 	bus_if = dev_get_drvdata(sdiodev->dev);
 	bus_if->state = BUS_DOWN_ST;
-
-	sdio_claim_host(sdiodev->func);
-	//disable sdio interrupt
-    ret = aicwf_sdio_writeb(sdiodev, sdiodev->sdio_reg.intr_config_reg, 0x0);
-	if (ret < 0) {
-		AICWFDBG(LOGERROR, "reg:%d write failed!\n", sdiodev->sdio_reg.intr_config_reg);
-	}
-	sdio_release_irq(sdiodev->func);
-	sdio_release_host(sdiodev->func);
-
+#ifdef CONFIG_OOB
+    if(sdiodev->oob_enable){
+    	sdio_claim_host(sdiodev->func);
+    	//disable sdio interrupt
+        ret = aicwf_sdio_writeb(sdiodev, sdiodev->sdio_reg.intr_config_reg, 0x0);
+    	if (ret < 0) {
+    		AICWFDBG(LOGERROR, "reg:%d write failed!\n", sdiodev->sdio_reg.intr_config_reg);
+    	}
+    	sdio_release_irq(sdiodev->func);
+    	sdio_release_host(sdiodev->func);
+    }
+#endif
 	if (sdiodev->dev)
 		aicwf_bus_deinit(sdiodev->dev);
 
@@ -1975,7 +2319,7 @@ int aicwf_sdiov3_func_init(struct aic_sdio_dev *sdiodev)
 	u8 byte_mode_disable = 0x1;//1: no byte mode
 	int ret = 0;
 	struct aicbsp_feature_t feature;
-	u8 val = 0;
+	//u8 val = 0;
     u8 val1 = 0;
 
 	aicbsp_get_feature(&feature, NULL);
@@ -1985,12 +2329,27 @@ int aicwf_sdiov3_func_init(struct aic_sdio_dev *sdiodev)
 
 	sdio_claim_host(sdiodev->func);
     sdiodev->func->card->quirks |= MMC_QUIRK_LENIENT_FN0;
+
+	ret = sdio_set_block_size(sdiodev->func, SDIOWIFI_FUNC_BLOCKSIZE);
+	if (ret < 0) {
+		AICWFDBG(LOGERROR, "set blocksize fail %d\n", ret);
+		sdio_release_host(sdiodev->func);
+		return ret;
+	}
+	ret = sdio_enable_func(sdiodev->func);
+	if (ret < 0) {
+		sdio_release_host(sdiodev->func);
+		AICWFDBG(LOGERROR, "enable func fail %d.\n", ret);
+        return ret;
+	}
+
     sdio_f0_writeb(sdiodev->func, 0x7F, 0xF2, &ret);
     if (ret) {
         sdio_err("set fn0 0xF2 fail %d\n", ret);
         sdio_release_host(sdiodev->func);
         return ret;
     }
+#if 0
     if (host->ios.timing == MMC_TIMING_UHS_DDR50) {
         val = 0x21;//0x1D;//0x5;
     } else {
@@ -2015,7 +2374,7 @@ int aicwf_sdiov3_func_init(struct aic_sdio_dev *sdiodev)
         sdio_release_host(sdiodev->func);
         return ret;
     }
-    udelay(100);
+    msleep(1);
 #if 1//SDIO CLOCK SETTING
 	if ((feature.sdio_clock > 0) && (host->ios.timing != MMC_TIMING_UHS_DDR50)) {
 		host->ios.clock = feature.sdio_clock;
@@ -2023,20 +2382,7 @@ int aicwf_sdiov3_func_init(struct aic_sdio_dev *sdiodev)
 		AICWFDBG(LOGINFO, "Set SDIO Clock %d MHz\n", host->ios.clock/1000000);
 	}
 #endif
-
-	ret = sdio_set_block_size(sdiodev->func, SDIOWIFI_FUNC_BLOCKSIZE);
-	if (ret < 0) {
-		AICWFDBG(LOGERROR, "set blocksize fail %d\n", ret);
-		sdio_release_host(sdiodev->func);
-		return ret;
-	}
-	ret = sdio_enable_func(sdiodev->func);
-	if (ret < 0) {
-		sdio_release_host(sdiodev->func);
-		AICWFDBG(LOGERROR, "enable func fail %d.\n", ret);
-        return ret;
-	}
-
+#endif
 	sdio_release_host(sdiodev->func);
 
 	//1: no byte mode
@@ -2134,6 +2480,10 @@ void *aicwf_sdio_bus_init(struct aic_sdio_dev *sdiodev)
 	if (IS_ERR(sdiodev->pwrctl_tsk)) {
 		sdiodev->pwrctl_tsk = NULL;
 	}
+#endif
+#ifdef CONFIG_TX_NETIF_FLOWCTRL
+	sdiodev->flowctrl = 0;
+	spin_lock_init(&sdiodev->tx_flow_lock);
 #endif
 
 	ret = aicwf_bus_init(0, sdiodev->dev);

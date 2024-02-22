@@ -57,6 +57,10 @@
 #define SDIO_ACTIVE_ST                   1
 
 #define DATA_FLOW_CTRL_THRESH 2
+#ifdef CONFIG_TX_NETIF_FLOWCTRL
+#define AICWF_SDIO_TX_LOW_WATER          100
+#define AICWF_SDIO_TX_HIGH_WATER         500
+#endif
 
 typedef enum {
 	SDIO_TYPE_DATA         = 0X00,
@@ -110,6 +114,10 @@ struct aic_sdio_dev {
 	struct aicwf_rx_priv *rx_priv;
 	struct aicwf_tx_priv *tx_priv;
 	u32 state;
+#ifdef CONFIG_TX_NETIF_FLOWCTRL
+	u8 flowctrl;
+	spinlock_t tx_flow_lock;
+#endif
 
     #if defined(CONFIG_SDIO_PWRCTRL)
 	//for sdio pwr ctrl
@@ -123,8 +131,9 @@ struct aic_sdio_dev {
 	u16 chipid;
     struct aic_sdio_reg sdio_reg;
 
-	atomic_t irq_sdio_atomic;//AIDEN test
 	spinlock_t wslock;//AIDEN test
+	bool oob_enable;
+    atomic_t is_bus_suspend;
 };
 extern struct aicwf_rx_buff_list aic_rx_buff_list;
 int aicwf_sdio_writeb(struct aic_sdio_dev *sdiodev, uint regaddr, u8 val);
@@ -138,6 +147,9 @@ void aicwf_sdio_reg_init(struct aic_sdio_dev *sdiodev);
 int aicwf_sdio_func_init(struct aic_sdio_dev *sdiodev);
 int aicwf_sdiov3_func_init(struct aic_sdio_dev *sdiodev);
 void aicwf_sdio_func_deinit(struct aic_sdio_dev *sdiodev);
+#ifdef CONFIG_TX_NETIF_FLOWCTRL
+void aicwf_sdio_tx_netif_flowctrl(struct rwnx_hw *rwnx_hw, bool state);
+#endif
 int aicwf_sdio_flow_ctrl(struct aic_sdio_dev *sdiodev);
 int aicwf_sdio_flow_ctrl_msg(struct aic_sdio_dev *sdiodev);
 #ifdef CONFIG_PREALLOC_RX_SKB
@@ -153,6 +165,10 @@ void aicwf_sdio_register(void);
 int aicwf_sdio_txpkt(struct aic_sdio_dev *sdiodev, struct sk_buff *pkt);
 int sdio_bustx_thread(void *data);
 int sdio_busrx_thread(void *data);
+#ifdef CONFIG_OOB
+//new oob feature
+int sdio_busirq_thread(void *data);
+#endif //CONFIG_OOB
 int aicwf_sdio_aggr(struct aicwf_tx_priv *tx_priv, struct sk_buff *pkt);
 int aicwf_sdio_send(struct aicwf_tx_priv *tx_priv, u8 txnow);
 void aicwf_sdio_aggr_send(struct aicwf_tx_priv *tx_priv);

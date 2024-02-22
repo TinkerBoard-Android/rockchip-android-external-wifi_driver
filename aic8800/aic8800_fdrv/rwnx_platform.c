@@ -55,7 +55,10 @@ typedef struct
     txpwr_lvl_conf_t txpwr_lvl;
     txpwr_lvl_conf_v2_t txpwr_lvl_v2;
     txpwr_lvl_conf_v3_t txpwr_lvl_v3;
+    txpwr_lvl_adj_conf_t txpwr_lvl_adj;
+	txpwr_loss_conf_t txpwr_loss;
     txpwr_ofst_conf_t txpwr_ofst;
+	txpwr_ofst2x_conf_t txpwr_ofst2x;
     xtal_cap_conf_t xtal_cap;
 } userconfig_info_t;
 
@@ -105,6 +108,10 @@ userconfig_info_t userconfig_info = {
             //MCS0, MCS1, MCS2, MCS3, MCS4, MCS5, MCS6, MCS7, MCS8, MCS9, MCS10,MCS11
             { 20,   20,   20,   20,   18,   18,   16,   16,   16,   15,   14,   14},
     },
+	.txpwr_loss = {
+		.loss_enable	  = 1,
+		.loss_value 	  = 0,
+	},
     .txpwr_ofst = {
         .enable       = 1,
         .chan_1_4     = 0,
@@ -114,6 +121,21 @@ userconfig_info_t userconfig_info = {
         .chan_100_120 = 0,
         .chan_122_140 = 0,
         .chan_142_165 = 0,
+    },
+    .txpwr_ofst2x = {
+        .enable       = 0,
+        .pwrofst2x_tbl_2g4 =
+        { // ch1-4, ch5-9, ch10-13
+            {   0,    0,    0   }, // 11b
+            {   0,    0,    0   }, // ofdm_highrate
+            {   0,    0,    0   }, // ofdm_lowrate
+        },
+        .pwrofst2x_tbl_5g =
+        { // ch42,  ch58, ch106,ch122,ch138,ch155
+            {   0,    0,    0,    0,    0,    0   }, // ofdm_lowrate
+            {   0,    0,    0,    0,    0,    0   }, // ofdm_highrate
+            {   0,    0,    0,    0,    0,    0   }, // ofdm_midrate
+        },
     },
     .xtal_cap = {
         .enable        = 0,
@@ -200,6 +222,10 @@ static int rwnx_plat_tl4_fw_upload(struct rwnx_plat *rwnx_plat, u8 *fw_addr,
 
 	return err;
 }
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0)
+MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);
 #endif
 
 #if 0
@@ -296,9 +322,9 @@ static int rwnx_load_firmware(u32 **fw_buf, const char *name, struct device *dev
     void *buffer = NULL;
     char *path = NULL;
     struct file *fp = NULL;
-    int size = 0, len = 0, i = 0;
+    int size = 0, len = 0;// i = 0;
     ssize_t rdlen = 0;
-    u32 *src = NULL, *dst = NULL;
+    //u32 *src = NULL, *dst = NULL;
 	MD5_CTX md5;
 	unsigned char decrypt[16];
 
@@ -371,6 +397,7 @@ static int rwnx_load_firmware(u32 **fw_buf, const char *name, struct device *dev
         fp->f_pos += rdlen;
     }
 
+#if 0
     /*start to transform the data format*/
     src = (u32 *)buffer;
     dst = (u32 *)kzalloc(size, GFP_KERNEL);
@@ -388,16 +415,17 @@ static int rwnx_load_firmware(u32 **fw_buf, const char *name, struct device *dev
     for (i = 0; i < (size/4); i++) {
         dst[i] = src[i];
     }
+#endif
 
     __putname(path);
     filp_close(fp, NULL);
     fp = NULL;
-    kfree(buffer);
-    buffer = NULL;
-    *fw_buf = dst;
+    //kfree(buffer);
+    //buffer = NULL;
+    *fw_buf = (u32*)buffer;
 
 	MD5Init(&md5);
-	MD5Update(&md5, (unsigned char *)dst, size);
+	MD5Update(&md5, (unsigned char *)buffer, size);
 	MD5Final(&md5, decrypt);
 
 	AICWFDBG(LOGINFO, MD5PINRT, MD5(decrypt));
@@ -553,6 +581,29 @@ void get_userconfig_txpwr_ofst_in_fdrv(txpwr_ofst_conf_t *txpwr_ofst)
     AICWFDBG(LOGINFO, "%s:chan_142_165:%d\r\n", __func__, txpwr_ofst->chan_142_165);
 }
 
+void get_userconfig_txpwr_ofst2x_in_fdrv(txpwr_ofst2x_conf_t *txpwr_ofst2x)
+{
+    int type, ch_grp;
+    *txpwr_ofst2x = userconfig_info.txpwr_ofst2x;
+    AICWFDBG(LOGINFO, "%s:enable      :%d\r\n", __func__, txpwr_ofst2x->enable);
+    AICWFDBG(LOGINFO, "pwrofst2x 2.4g: [0]:11b, [1]:ofdm_highrate, [2]:ofdm_lowrate\n"
+        "  chan=" "\t1-4" "\t5-9" "\t10-13");
+    for (type = 0; type < 3; type++) {
+        AICWFDBG(LOGINFO, "\n  [%d] =", type);
+        for (ch_grp = 0; ch_grp < 3; ch_grp++) {
+            AICWFDBG(LOGINFO, "\t%d", txpwr_ofst2x->pwrofst2x_tbl_2g4[type][ch_grp]);
+        }
+    }
+    AICWFDBG(LOGINFO, "\npwrofst2x 5g: [0]:ofdm_lowrate, [1]:ofdm_highrate, [2]:ofdm_midrate\n"
+        "  chan=" "\t36-50" "\t51-64" "\t98-114" "\t115-130" "\t131-146" "\t147-166");
+    for (type = 0; type < 3; type++) {
+        AICWFDBG(LOGINFO, "\n  [%d] =", type);
+        for (ch_grp = 0; ch_grp < 6; ch_grp++) {
+            AICWFDBG(LOGINFO, "\t%d", txpwr_ofst2x->pwrofst2x_tbl_5g[type][ch_grp]);
+        }
+    }
+    AICWFDBG(LOGINFO, "\n");
+}
 
 void get_userconfig_txpwr_idx(txpwr_idx_conf_t *txpwr_idx)
 {
@@ -566,8 +617,14 @@ void get_userconfig_txpwr_ofst(txpwr_ofst_conf_t *txpwr_ofst)
 
 void get_userconfig_xtal_cap(xtal_cap_conf_t *xtal_cap)
 {
-    *xtal_cap = nvram_info.xtal_cap;
-
+    if(nvram_info.xtal_cap.enable){
+        *xtal_cap = nvram_info.xtal_cap;
+    }
+    
+    if(userconfig_info.xtal_cap.enable){
+        *xtal_cap = userconfig_info.xtal_cap;
+    }
+    
     AICWFDBG(LOGINFO, "%s:enable       :%d\r\n", __func__, xtal_cap->enable);
     AICWFDBG(LOGINFO, "%s:xtal_cap     :%d\r\n", __func__, xtal_cap->xtal_cap);
     AICWFDBG(LOGINFO, "%s:xtal_cap_fine:%d\r\n", __func__, xtal_cap->xtal_cap_fine);
@@ -984,8 +1041,33 @@ void rwnx_plat_nvram_set_value_v3(char *command, char *value)
         userconfig_info.txpwr_lvl_v3.pwrlvl_11ax_5g[10] = rwnx_atoi(value);
     } else if (!strcmp(command,     "lvl_11ax_mcs11_5g")) {
         userconfig_info.txpwr_lvl_v3.pwrlvl_11ax_5g[11] = rwnx_atoi(value);
+    } else if (!strcmp(command, "lvl_adj_enable")) {
+        userconfig_info.txpwr_lvl_adj.enable = rwnx_atoi(value);
+    } else if (!strcmp(command, "lvl_adj_2g4_chan_1_4")) {
+        userconfig_info.txpwr_lvl_adj.pwrlvl_adj_tbl_2g4[0] = rwnx_atoi(value);
+    } else if (!strcmp(command, "lvl_adj_2g4_chan_5_9")) {
+        userconfig_info.txpwr_lvl_adj.pwrlvl_adj_tbl_2g4[1] = rwnx_atoi(value);
+    } else if (!strcmp(command, "lvl_adj_2g4_chan_10_13")) {
+        userconfig_info.txpwr_lvl_adj.pwrlvl_adj_tbl_2g4[2] = rwnx_atoi(value);
+    } else if (!strcmp(command, "ofst_5g_ofdm_highrate_chan_42")) {
+        userconfig_info.txpwr_lvl_adj.pwrlvl_adj_tbl_5g[0] = rwnx_atoi(value);
+    } else if (!strcmp(command, "ofst_5g_ofdm_highrate_chan_58")) {
+        userconfig_info.txpwr_lvl_adj.pwrlvl_adj_tbl_5g[1] = rwnx_atoi(value);
+    } else if (!strcmp(command, "ofst_5g_ofdm_highrate_chan_106")) {
+        userconfig_info.txpwr_lvl_adj.pwrlvl_adj_tbl_5g[2] = rwnx_atoi(value);
+    } else if (!strcmp(command, "ofst_5g_ofdm_highrate_chan_122")) {
+        userconfig_info.txpwr_lvl_adj.pwrlvl_adj_tbl_5g[3] = rwnx_atoi(value);
+    } else if (!strcmp(command, "ofst_5g_ofdm_highrate_chan_138")) {
+        userconfig_info.txpwr_lvl_adj.pwrlvl_adj_tbl_5g[4] = rwnx_atoi(value);
+    } else if (!strcmp(command, "ofst_5g_ofdm_highrate_chan_155")) {
+        userconfig_info.txpwr_lvl_adj.pwrlvl_adj_tbl_5g[5] = rwnx_atoi(value);
+    } else if (!strcmp(command, "loss_enable")) {
+        userconfig_info.txpwr_loss.loss_enable = rwnx_atoi(value);
+    } else if (!strcmp(command, "loss_value")) {
+        userconfig_info.txpwr_loss.loss_value = rwnx_atoi(value);
     } else if (!strcmp(command, "ofst_enable")) {
         userconfig_info.txpwr_ofst.enable = rwnx_atoi(value);
+		userconfig_info.txpwr_ofst2x.enable = rwnx_atoi(value);
     } else if (!strcmp(command, "ofst_chan_1_4")) {
         userconfig_info.txpwr_ofst.chan_1_4 = rwnx_atoi(value);
     } else if (!strcmp(command, "ofst_chan_5_9")) {
@@ -1000,6 +1082,60 @@ void rwnx_plat_nvram_set_value_v3(char *command, char *value)
         userconfig_info.txpwr_ofst.chan_122_140 = rwnx_atoi(value);
     } else if (!strcmp(command, "ofst_chan_142_165")) {
         userconfig_info.txpwr_ofst.chan_142_165 = rwnx_atoi(value);
+	} else if (!strcmp(command, "ofst_2g4_11b_chan_1_4")) {
+        userconfig_info.txpwr_ofst2x.pwrofst2x_tbl_2g4[0][0] = rwnx_atoi(value);
+    } else if (!strcmp(command, "ofst_2g4_11b_chan_5_9")) {
+        userconfig_info.txpwr_ofst2x.pwrofst2x_tbl_2g4[0][1] = rwnx_atoi(value);
+    } else if (!strcmp(command, "ofst_2g4_11b_chan_10_13")) {
+        userconfig_info.txpwr_ofst2x.pwrofst2x_tbl_2g4[0][2] = rwnx_atoi(value);
+    } else if (!strcmp(command, "ofst_2g4_ofdm_highrate_chan_1_4")) {
+        userconfig_info.txpwr_ofst2x.pwrofst2x_tbl_2g4[1][0] = rwnx_atoi(value);
+    } else if (!strcmp(command, "ofst_2g4_ofdm_highrate_chan_5_9")) {
+        userconfig_info.txpwr_ofst2x.pwrofst2x_tbl_2g4[1][1] = rwnx_atoi(value);
+    } else if (!strcmp(command, "ofst_2g4_ofdm_highrate_chan_10_13")) {
+        userconfig_info.txpwr_ofst2x.pwrofst2x_tbl_2g4[1][2] = rwnx_atoi(value);
+    } else if (!strcmp(command, "ofst_2g4_ofdm_lowrate_chan_1_4")) {
+        userconfig_info.txpwr_ofst2x.pwrofst2x_tbl_2g4[2][0] = rwnx_atoi(value);
+    } else if (!strcmp(command, "ofst_2g4_ofdm_lowrate_chan_5_9")) {
+        userconfig_info.txpwr_ofst2x.pwrofst2x_tbl_2g4[2][1] = rwnx_atoi(value);
+	} else if (!strcmp(command, "ofst_2g4_ofdm_lowrate_chan_10_13")) {
+        userconfig_info.txpwr_ofst2x.pwrofst2x_tbl_2g4[2][0] = rwnx_atoi(value);
+    } else if (!strcmp(command, "ofst_5g_ofdm_lowrate_chan_42")) {
+        userconfig_info.txpwr_ofst2x.pwrofst2x_tbl_5g[0][0] = rwnx_atoi(value);
+    } else if (!strcmp(command, "ofst_5g_ofdm_lowrate_chan_58")) {
+        userconfig_info.txpwr_ofst2x.pwrofst2x_tbl_5g[0][1] = rwnx_atoi(value);
+    } else if (!strcmp(command, "ofst_5g_ofdm_lowrate_chan_106")) {
+        userconfig_info.txpwr_ofst2x.pwrofst2x_tbl_5g[0][2] = rwnx_atoi(value);
+    } else if (!strcmp(command, "ofst_5g_ofdm_lowrate_chan_122")) {
+        userconfig_info.txpwr_ofst2x.pwrofst2x_tbl_5g[0][3] = rwnx_atoi(value);
+    } else if (!strcmp(command, "ofst_5g_ofdm_lowrate_chan_138")) {
+        userconfig_info.txpwr_ofst2x.pwrofst2x_tbl_5g[0][4] = rwnx_atoi(value);
+    } else if (!strcmp(command, "ofst_5g_ofdm_lowrate_chan_155")) {
+        userconfig_info.txpwr_ofst2x.pwrofst2x_tbl_5g[0][5] = rwnx_atoi(value);
+    } else if (!strcmp(command, "ofst_5g_ofdm_highrate_chan_42")) {
+        userconfig_info.txpwr_ofst2x.pwrofst2x_tbl_5g[1][0] = rwnx_atoi(value);
+    } else if (!strcmp(command, "ofst_5g_ofdm_highrate_chan_58")) {
+        userconfig_info.txpwr_ofst2x.pwrofst2x_tbl_5g[1][1] = rwnx_atoi(value);
+    } else if (!strcmp(command, "ofst_5g_ofdm_highrate_chan_106")) {
+        userconfig_info.txpwr_ofst2x.pwrofst2x_tbl_5g[1][2] = rwnx_atoi(value);
+    } else if (!strcmp(command, "ofst_5g_ofdm_highrate_chan_122")) {
+        userconfig_info.txpwr_ofst2x.pwrofst2x_tbl_5g[1][3] = rwnx_atoi(value);
+    } else if (!strcmp(command, "ofst_5g_ofdm_highrate_chan_138")) {
+        userconfig_info.txpwr_ofst2x.pwrofst2x_tbl_5g[1][4] = rwnx_atoi(value);
+    } else if (!strcmp(command, "ofst_5g_ofdm_highrate_chan_155")) {
+        userconfig_info.txpwr_ofst2x.pwrofst2x_tbl_5g[1][5] = rwnx_atoi(value);
+    } else if (!strcmp(command, "ofst_5g_ofdm_midrate_chan_42")) {
+        userconfig_info.txpwr_ofst2x.pwrofst2x_tbl_5g[2][0] = rwnx_atoi(value);
+    } else if (!strcmp(command, "ofst_5g_ofdm_midrate_chan_58")) {
+        userconfig_info.txpwr_ofst2x.pwrofst2x_tbl_5g[2][1] = rwnx_atoi(value);
+    } else if (!strcmp(command, "ofst_5g_ofdm_midrate_chan_106")) {
+        userconfig_info.txpwr_ofst2x.pwrofst2x_tbl_5g[2][2] = rwnx_atoi(value);
+    } else if (!strcmp(command, "ofst_5g_ofdm_midrate_chan_122")) {
+        userconfig_info.txpwr_ofst2x.pwrofst2x_tbl_5g[2][3] = rwnx_atoi(value);
+    } else if (!strcmp(command, "ofst_5g_ofdm_midrate_chan_138")) {
+        userconfig_info.txpwr_ofst2x.pwrofst2x_tbl_5g[2][4] = rwnx_atoi(value);
+    } else if (!strcmp(command, "ofst_5g_ofdm_midrate_chan_155")) {
+        userconfig_info.txpwr_ofst2x.pwrofst2x_tbl_5g[2][5] = rwnx_atoi(value);
     } else if (!strcmp(command, "xtal_enable")) {
         userconfig_info.xtal_cap.enable = rwnx_atoi(value);
     } else if (!strcmp(command, "xtal_cap")) {
@@ -1077,11 +1213,11 @@ void rwnx_plat_userconfig_parsing3(char *buffer, int size)
 {
     int i = 0;
     int parse_state = 0;
-    char command[30];
+    char command[64];
     char value[100];
     int char_counter = 0;
 
-    memset(command, 0, 30);
+    memset(command, 0, 64);
     memset(value, 0, 100);
 
     for (i = 0; i < size; i++) {
@@ -1095,7 +1231,7 @@ void rwnx_plat_userconfig_parsing3(char *buffer, int size)
                 }
             }
             //Reset command value and char_counter
-            memset(command, 0, 30);
+            memset(command, 0, 64);
             memset(value, 0, 100);
             char_counter = 0;
             parse_state = INIT;
@@ -1129,6 +1265,9 @@ void rwnx_plat_userconfig_parsing3(char *buffer, int size)
             command[char_counter] = buffer[i];
             char_counter++;
         } else if (parse_state == GET_VALUE) {
+            if(buffer[i] != 0x2D && (buffer[i] < 0x30 || buffer[i] > 0x39)) {
+                continue;
+            }
             value[char_counter] = buffer[i];
             char_counter++;
         }
@@ -1243,9 +1382,9 @@ static int aic_load_firmware(u32 ** fw_buf, char *fw_path,const char *name, stru
     void *buffer=NULL;
     char *path=NULL;
     struct file *fp=NULL;
-    int size = 0, len=0, i=0;
+    int size = 0, len=0;//, i=0;
     ssize_t rdlen=0;
-    u32 *src=NULL, *dst = NULL;
+    //u32 *src=NULL, *dst = NULL;
 
     /* get the firmware path */
     path = __getname();
@@ -1318,7 +1457,7 @@ static int aic_load_firmware(u32 ** fw_buf, char *fw_path,const char *name, stru
             //printk("f_pos=%d\n", (int)fp->f_pos);
     }
 
-
+#if 0
    /*start to transform the data format*/
     src = (u32*)buffer;
     //printk("malloc dst\n");
@@ -1338,13 +1477,14 @@ static int aic_load_firmware(u32 ** fw_buf, char *fw_path,const char *name, stru
     for(i=0;i<(size/4);i++){
             dst[i] = src[i];
     }
+#endif
 
     __putname(path);
     filp_close(fp,NULL);
     fp=NULL;
-    vfree(buffer);
-    buffer=NULL;
-    *fw_buf = dst;
+    //vfree(buffer);
+    //buffer=NULL;
+    *fw_buf = (u32 *)buffer;
 
     return size;
 #endif
@@ -1756,6 +1896,23 @@ void get_userconfig_txpwr_lvl_v3_in_fdrv(txpwr_lvl_conf_v3_t *txpwr_lvl_v3)
     AICWFDBG(LOGINFO, "%s:lvl_11ax_mcs11_5g:%d\r\n",    __func__, txpwr_lvl_v3->pwrlvl_11ax_5g[11]);
 }
 
+void get_userconfig_txpwr_lvl_adj_in_fdrv(txpwr_lvl_adj_conf_t *txpwr_lvl_adj)
+{
+    *txpwr_lvl_adj = userconfig_info.txpwr_lvl_adj;
+
+    AICWFDBG(LOGINFO, "%s:enable:%d\r\n",                   __func__, txpwr_lvl_adj->enable);
+    AICWFDBG(LOGINFO, "%s:lvl_adj_2g4_chan_1_4:%d\r\n",     __func__, txpwr_lvl_adj->pwrlvl_adj_tbl_2g4[0]);
+    AICWFDBG(LOGINFO, "%s:lvl_adj_2g4_chan_5_9:%d\r\n",     __func__, txpwr_lvl_adj->pwrlvl_adj_tbl_2g4[1]);
+    AICWFDBG(LOGINFO, "%s:lvl_adj_2g4_chan_10_13:%d\r\n",   __func__, txpwr_lvl_adj->pwrlvl_adj_tbl_2g4[2]);
+
+    AICWFDBG(LOGINFO, "%s:lvl_adj_5g_chan_42:%d\r\n",       __func__, txpwr_lvl_adj->pwrlvl_adj_tbl_5g[0]);
+    AICWFDBG(LOGINFO, "%s:lvl_adj_5g_chan_58:%d\r\n",       __func__, txpwr_lvl_adj->pwrlvl_adj_tbl_5g[1]);
+    AICWFDBG(LOGINFO, "%s:lvl_adj_5g_chan_106:%d\r\n",      __func__, txpwr_lvl_adj->pwrlvl_adj_tbl_5g[2]);
+    AICWFDBG(LOGINFO, "%s:lvl_adj_5g_chan_122:%d\r\n",      __func__, txpwr_lvl_adj->pwrlvl_adj_tbl_5g[3]);
+    AICWFDBG(LOGINFO, "%s:lvl_adj_5g_chan_138:%d\r\n",      __func__, txpwr_lvl_adj->pwrlvl_adj_tbl_5g[4]);
+    AICWFDBG(LOGINFO, "%s:lvl_adj_5g_chan_155:%d\r\n",      __func__, txpwr_lvl_adj->pwrlvl_adj_tbl_5g[5]);
+}
+
 /**
  * rwnx_plat_userconfig_load  ---Load aic_userconfig.txt
  *@filename name of config
@@ -1765,15 +1922,24 @@ static int rwnx_plat_userconfig_load(struct rwnx_hw *rwnx_hw) {
 	if(rwnx_hw->sdiodev->chipid == PRODUCT_ID_AIC8801){
 		
 		rwnx_plat_userconfig_upload_android(rwnx_hw, aic_fw_path, FW_USERCONFIG_NAME);
-	}else if(rwnx_hw->sdiodev->chipid == PRODUCT_ID_AIC8800DC ||
-		rwnx_hw->sdiodev->chipid == PRODUCT_ID_AIC8800DW){
+	}else if(rwnx_hw->sdiodev->chipid == PRODUCT_ID_AIC8800DC){
 		rwnx_plat_userconfig_load_8800dc(rwnx_hw);
-	}else if(rwnx_hw->sdiodev->chipid == PRODUCT_ID_AIC8800D80){
+	}else if(rwnx_hw->sdiodev->chipid == PRODUCT_ID_AIC8800DW){
+        rwnx_plat_userconfig_load_8800dw(rwnx_hw);
+    }else if(rwnx_hw->sdiodev->chipid == PRODUCT_ID_AIC8800D80){
 		rwnx_plat_userconfig_load_8800d80(rwnx_hw);
 	}
 	return 0;
 }
 
+void get_userconfig_txpwr_loss(txpwr_loss_conf_t *txpwr_loss)
+{
+    txpwr_loss->loss_enable      = userconfig_info.txpwr_loss.loss_enable;
+    txpwr_loss->loss_value       = userconfig_info.txpwr_loss.loss_value;
+
+    AICWFDBG(LOGINFO, "%s:loss_enable:%d\r\n",     __func__, txpwr_loss->loss_enable);
+    AICWFDBG(LOGINFO, "%s:loss_value:%d\r\n",      __func__, txpwr_loss->loss_value);
+}
 
 /**
  * rwnx_platform_on() - Start the platform
@@ -1939,7 +2105,4 @@ MODULE_FIRMWARE(RWNX_MAC_FW_NAME);
 MODULE_FIRMWARE(RWNX_MAC_FW_NAME2);
 #endif
 
-#if LINUX_VERSION_CODE > KERNEL_VERSION(5, 10, 0)
-MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);
-#endif
 

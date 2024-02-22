@@ -26,6 +26,7 @@
 #ifdef AICWF_SDIO_SUPPORT
 #include "sdio_host.h"
 #endif
+#include "aic_bsp_export.h"
 
 #ifdef CONFIG_PREALLOC_RX_SKB
 void aicwf_rxframe_queue_init_2(struct rx_frame_queue *pq, int max_len)
@@ -91,11 +92,18 @@ int aicwf_bus_init(uint bus_hdrlen, struct device *dev)
 
 	init_completion(&bus_if->bustx_trgg);
 	init_completion(&bus_if->busrx_trgg);
+    //new oob feature
+    init_completion(&bus_if->busirq_trgg);
 #ifdef AICWF_SDIO_SUPPORT
 	spin_lock_init(&bus_if->bus_priv.sdio->wslock);//AIDEN test
-	atomic_set(&bus_if->bus_priv.sdio->irq_sdio_atomic, 0);//AIDEN test
 	bus_if->bustx_thread = kthread_run(sdio_bustx_thread, (void *)bus_if, "aicwf_bustx_thread");
 	bus_if->busrx_thread = kthread_run(sdio_busrx_thread, (void *)bus_if->bus_priv.sdio->rx_priv, "aicwf_busrx_thread");
+    //new oob feature
+#ifdef CONFIG_OOB
+    if(bus_if->bus_priv.sdio->oob_enable){
+        bus_if->busirq_thread = kthread_run(sdio_busirq_thread, (void *)bus_if->bus_priv.sdio->rx_priv, "aicwf_busirq_thread");
+    }
+#endif //CONFIG_OOB
 #endif
 #ifdef AICWF_USB_SUPPORT
 	bus_if->bustx_thread = kthread_run(usb_bustx_thread, (void *)bus_if, "aicwf_bustx_thread");
@@ -197,7 +205,11 @@ struct aicwf_tx_priv *aicwf_tx_init(void *arg)
 #endif
 
 	atomic_set(&tx_priv->aggr_count, 0);
+#ifdef  CONFIG_RESV_MEM_SUPPORT
+	tx_priv->aggr_buf = aicbsp_resv_mem_alloc_skb(MAX_AGGR_TXPKT_LEN, AIC_RESV_MEM_TXDATA);
+#else
 	tx_priv->aggr_buf = dev_alloc_skb(MAX_AGGR_TXPKT_LEN);
+#endif
 	if (!tx_priv->aggr_buf) {
 		txrx_err("Alloc bus->txdata_buf failed!\n");
 		kfree(tx_priv);
@@ -212,7 +224,11 @@ struct aicwf_tx_priv *aicwf_tx_init(void *arg)
 void aicwf_tx_deinit(struct aicwf_tx_priv *tx_priv)
 {
 	if (tx_priv && tx_priv->aggr_buf) {
+#ifdef  CONFIG_RESV_MEM_SUPPORT
+		aicbsp_resv_mem_kfree_skb(tx_priv->aggr_buf, AIC_RESV_MEM_TXDATA);
+#else
 		dev_kfree_skb(tx_priv->aggr_buf);
+#endif
 		kfree(tx_priv);
 	}
 }
@@ -518,7 +534,6 @@ static struct recv_msdu *aicwf_rxframe_queue_init(struct list_head *q, int qsize
 	for (i = 0; i < qsize; i++) {
 		INIT_LIST_HEAD(&req->rxframe_list);
 		list_add(&req->rxframe_list, q);
-		req->len = 0;
 		req++;
 	}
 
@@ -598,6 +613,16 @@ void aicwf_rx_deinit(struct aicwf_rx_priv *rx_priv)
 		kthread_stop(rx_priv->sdiodev->bus_if->busrx_thread);
 		rx_priv->sdiodev->bus_if->busrx_thread = NULL;
 	}
+#ifdef CONFIG_OOB
+    if(rx_priv->sdiodev->oob_enable){
+        //new oob feature
+        if (rx_priv->sdiodev->bus_if->busirq_thread) {
+            complete_all(&rx_priv->sdiodev->bus_if->busirq_trgg);
+            kthread_stop(rx_priv->sdiodev->bus_if->busirq_thread);
+            rx_priv->sdiodev->bus_if->busirq_thread = NULL;
+        }
+    }
+#endif //CONFIG_OOB
 #endif
 #ifdef AICWF_USB_SUPPORT
 	if (rx_priv->usbdev->bus_if->busrx_thread) {
