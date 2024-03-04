@@ -138,3 +138,4 @@ all.config
 # Kdevelop4
 *.kdev4
 *.lds
+wifi.load
