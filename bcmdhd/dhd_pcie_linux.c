@@ -47,9 +47,9 @@
 #include <pcicfg.h>
 #include <dhd_pcie.h>
 #include <dhd_linux.h>
-#if defined(CUSTOMER_HW_ROCKCHIP) && defined(CUSTOMER_HW_ROCKCHIP_RK3588)
+#ifdef CONFIG_PCIEASPM_ROCKCHIP_WIFI_EXTENSION
 #include <rk_dhd_pcie_linux.h>
-#endif /* CUSTOMER_HW_ROCKCHIP && CUSTOMER_HW_ROCKCHIP_RK3588 */
+#endif /* CONFIG_PCIEASPM_ROCKCHIP_WIFI_EXTENSION */
 #ifdef OEM_ANDROID
 #ifdef CONFIG_ARCH_MSM
 #if IS_ENABLED(CONFIG_PCI_MSM) || defined(CONFIG_ARCH_MSM8996)
@@ -626,7 +626,7 @@ dhd_bus_is_rc_ep_l1ss_capable(dhd_bus_t *bus)
 	uint32 rc_l1ss_cap;
 	uint32 ep_l1ss_cap;
 
-#if defined(CUSTOMER_HW_ROCKCHIP) && defined(CUSTOMER_HW_ROCKCHIP_RK3588)
+#ifdef CONFIG_PCIEASPM_ROCKCHIP_WIFI_EXTENSION
 	if (IS_ENABLED(CONFIG_PCIEASPM_ROCKCHIP_WIFI_EXTENSION)) {
 		if (rk_dhd_bus_is_rc_ep_l1ss_capable(bus)) {
 			DHD_ERROR(("%s L1ss is capable\n", __FUNCTION__));
@@ -636,7 +636,7 @@ dhd_bus_is_rc_ep_l1ss_capable(dhd_bus_t *bus)
 			return FALSE;
 		}
 	}
-#endif /* CUSTOMER_HW_ROCKCHIP && CUSTOMER_HW_ROCKCHIP_RK3588 */
+#endif /* CONFIG_PCIEASPM_ROCKCHIP_WIFI_EXTENSION */
 
 	/* RC Extendend Capacility */
 	rc_l1ss_cap = dhdpcie_access_cap(bus->rc_dev, PCIE_EXTCAP_ID_L1SS,
