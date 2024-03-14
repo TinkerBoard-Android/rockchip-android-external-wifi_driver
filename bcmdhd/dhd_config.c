@@ -142,7 +142,6 @@ const chip_name_map_t chip_name_map[] = {
 	{BCM43752_CHIP_ID,	1,	DONT_CARE,	"bcm43752a1_pcie_ag",	""},
 	{BCM43752_CHIP_ID,	2,	DONT_CARE,	"bcm43752a2_pcie_ag",	"ap6275p"},
 	{BCM4375_CHIP_ID,	5,	DONT_CARE,	"bcm4375b4_pcie_ag",	""},
-	{BCM43756_CHIP_ID,	4,	DONT_CARE,	"syn43756b0_pcie",	"ap6276p"},
 #endif
 #ifdef BCMDBUS
 	{BCM43143_CHIP_ID,	2,	DONT_CARE,	"bcm43143b0",			""},
@@ -164,14 +163,14 @@ const module_name_map_v2_t module_name_map_v2[] = {
 	{BCM43752_CHIP_ID,	4,	"ap6276s"},
 	{BCM43756_CHIP_ID,	4,	"ap6276s"},
 	{BCM43756_CHIP_ID,	6,	""},
-	{BCM43711_CHIP_ID,	0,	""},
+	{BCM43711_CHIP_ID,	0,	"ap6611s"},
 	{BCM4382_CHIP_ID,	3,	""},
 #endif
 #ifdef BCMPCIE
 	{BCM4381_CHIP_ID,	0,	""},
 	{BCM4381_CHIP_ID,	1,	""},
 	{BCM43752_CHIP_ID,	4,	""},
-	{BCM43756_CHIP_ID,	4,	""},
+	{BCM43756_CHIP_ID,	4,	"ap6276p"},
 	{BCM43756_CHIP_ID,	6,	""},
 	{BCM4382_CHIP_ID,	3,	""},
 #endif
