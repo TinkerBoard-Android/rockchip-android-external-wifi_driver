@@ -2208,6 +2208,8 @@ wl_ext_gtk_key_info(struct net_device *dev, char *data, char *command, int total
 		}
 
 		memset(&bcol_keyinfo, 0, sizeof(bcol_keyinfo));
+		memset(&keyinfo, 0, sizeof(keyinfo));
+
 		bcol_keyinfo.enable = 1;
 		bcol_keyinfo.ptk_len = 64;
 		memcpy(&bcol_keyinfo.ptk, data, RSN_KCK_LENGTH+RSN_KEK_LENGTH);
@@ -2217,7 +2219,6 @@ wl_ext_gtk_key_info(struct net_device *dev, char *data, char *command, int total
 			goto exit;
 		}
 
-		memset(&keyinfo, 0, sizeof(keyinfo));
 		memcpy(&keyinfo, data, RSN_KCK_LENGTH+RSN_KEK_LENGTH+RSN_REPLAY_LEN);
 		err = wl_ext_iovar_setbuf(dev, "gtk_key_info", &keyinfo, sizeof(keyinfo),
 			iovar_buf, sizeof(iovar_buf), NULL);
@@ -2228,7 +2229,7 @@ wl_ext_gtk_key_info(struct net_device *dev, char *data, char *command, int total
 	}
 
 exit:
-	if (android_msg_level & ANDROID_INFO_LEVEL) {
+	if (data && android_msg_level & ANDROID_INFO_LEVEL) {
 		prhex("kck", (uchar *)keyinfo.KCK, RSN_KCK_LENGTH);
 		prhex("kek", (uchar *)keyinfo.KEK, RSN_KEK_LENGTH);
 		prhex("replay_ctr", (uchar *)keyinfo.ReplayCounter, RSN_REPLAY_LEN);
@@ -2860,7 +2861,17 @@ wl_ext_conf_iovar(struct net_device *dev, char *command, int total_len)
 			bytes_written = snprintf(command, total_len, "%d", dhd->conf->pm);
 			ret = bytes_written;
 		}
-	} else {
+	}
+	else if (!strcmp(name, "tput_monitor_ms")) {
+		if (data) {
+			dhd->conf->tput_monitor_ms = simple_strtol(data, NULL, 0);
+			ret = 0;
+		} else {
+			bytes_written = snprintf(command, total_len, "%d", dhd->conf->tput_monitor_ms);
+			ret = bytes_written;
+		}
+	}
+	else {
 		AEXT_ERROR(dev->name, "no config parameter found\n");
 	}
 

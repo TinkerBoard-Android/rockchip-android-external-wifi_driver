@@ -1608,7 +1608,7 @@ _dhd_wlfc_pktq_flush(athost_wl_status_info_t* ctx, struct pktq *pq,
 				bool head = (p == q->head);
 				if (head)
 					q->head = PKTLINK(p);
-				else
+				else if (prev)
 					PKTSETLINK(prev, PKTLINK(p));
 				if (q_type == Q_TYPE_PSQ) {
 					if (!WLFC_GET_AFQ(dhdp->wlfc_mode) && (prec & 1)) {
@@ -3789,6 +3789,11 @@ dhd_wlfc_init(dhd_pub_t *dhd)
 #endif
 	dhd_os_wlfc_unblock(dhd);
 
+	/* Only initialize the wlfc structure when fw supports proptx */
+	if (FW_SUPPORTED(dhd, proptxstatus)) {
+		dhd_wlfc_enable(dhd);
+	}
+
 	if (dhd->plat_init)
 		dhd->plat_init((void *)dhd);
 
@@ -4454,7 +4459,6 @@ int dhd_wlfc_set_mode(dhd_pub_t *dhd, int val)
 /** Called when rx frame is received from the dongle */
 bool dhd_wlfc_is_header_only_pkt(dhd_pub_t * dhd, void *pktbuf)
 {
-	athost_wl_status_info_t* wlfc;
 	bool rc = FALSE;
 
 	if (dhd == NULL) {
@@ -4464,16 +4468,20 @@ bool dhd_wlfc_is_header_only_pkt(dhd_pub_t * dhd, void *pktbuf)
 
 	dhd_os_wlfc_block(dhd);
 
-	if (!dhd->wlfc_state || (dhd->proptxstatus_mode == WLFC_FCMODE_NONE)) {
-		dhd_os_wlfc_unblock(dhd);
-		return FALSE;
-	}
-
-	wlfc = (athost_wl_status_info_t*)dhd->wlfc_state;
-
-	if (PKTLEN(wlfc->osh, pktbuf) == 0) {
-		wlfc->stats.wlfc_header_only_pkt++;
+	// process for both wlfc or hostreorder case
+	if (0 == PKTLEN(dhd->osh, pktbuf)) {
 		rc = TRUE;
+
+		if (   (dhd->wlfc_state)
+		    && (   (WLFC_FCMODE_IMPLIED_CREDIT == dhd->proptxstatus_mode)
+		        || (WLFC_FCMODE_EXPLICIT_CREDIT == dhd->proptxstatus_mode)
+		       )
+		   ) {
+			athost_wl_status_info_t* wlfc;
+
+			wlfc = (athost_wl_status_info_t*)dhd->wlfc_state;
+			wlfc->stats.wlfc_header_only_pkt++;
+		}
 	}
 
 	dhd_os_wlfc_unblock(dhd);
@@ -4724,10 +4732,6 @@ int dhd_txpkt_log_and_dump(dhd_pub_t *dhdp, void* pkt, uint16 *pktfate_status)
 	uint8 hcnt = WL_TXSTATUS_GET_FREERUNCTR(DHD_PKTTAG_H2DTAG(PKTTAG(pkt)));
 	uint8 fifo_id = DHD_PKTTAG_FIFO(PKTTAG(pkt));
 
-	if (!pkt) {
-		DHD_ERROR(("Error: %s():%d\n", __FUNCTION__, __LINE__));
-		return BCME_BADARG;
-	}
 	pktid = (ifidx << DHD_PKTID_IF_SHIFT) | (fifo_id << DHD_PKTID_FIFO_SHIFT) | hcnt;
 #ifdef BDC
 	bdch = (struct bdc_header *)pktdata;

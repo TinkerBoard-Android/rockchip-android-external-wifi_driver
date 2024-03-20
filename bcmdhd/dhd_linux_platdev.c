@@ -261,7 +261,7 @@ int wifi_platform_set_power(wifi_adapter_info_t *adapter, bool on, unsigned long
 		goto fail;
 	}
 #else
-	if (!adapter || !adapter->wifi_plat_data) {
+	if (!adapter->wifi_plat_data) {
 		err = -EINVAL;
 		goto fail;
 	}
@@ -724,7 +724,8 @@ void wifi_ctrlfunc_unregister_drv(void)
 #endif /* !defined(CONFIG_DTS) */
 
 #if defined(CUSTOMER_HW)
-	dhd_wlan_deinit_plat_data(adapter);
+	if (adapter)
+		dhd_wlan_deinit_plat_data(adapter);
 #endif
 
 done:
