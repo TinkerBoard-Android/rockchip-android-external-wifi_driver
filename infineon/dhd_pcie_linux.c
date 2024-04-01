@@ -169,6 +169,11 @@ static int __devinit
 dhdpcie_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent);
 static void __devexit
 dhdpcie_pci_remove(struct pci_dev *pdev);
+#ifdef DHD_WIFI_SHUTDOWN
+static void __devexit
+dhdpcie_pci_shutdown(struct pci_dev *dev);
+#endif
+
 static int dhdpcie_init(struct pci_dev *pdev);
 static irqreturn_t dhdpcie_isr(int irq, void *arg);
 /* OS Routine functions for PCI suspend/resume */
@@ -266,6 +271,9 @@ static struct pci_driver dhdpcie_driver = {
 	suspend:	dhdpcie_pci_suspend,
 	resume:		dhdpcie_pci_resume,
 #endif /* DHD_PCIE_RUNTIMEPM || DHD_PCIE_NATIVE_RUNTIMEPM */
+#ifdef DHD_WIFI_SHUTDOWN
+	shutdown:	dhdpcie_pci_shutdown,
+#endif
 };
 
 extern char pcie_dev_bus_name[MOD_PARAM_INFOLEN];
@@ -1008,9 +1016,6 @@ static int dhdpcie_suspend_dev(struct pci_dev *dev)
 		DHD_ERROR(("%s: pci_set_power_state error %d\n",
 			__FUNCTION__, ret));
 	}
-#ifdef OEM_ANDROID
-	dev->state_saved = FALSE;
-#endif /* OEM_ANDROID */
 	dhdpcie_suspend_dump_cfgregs(bus, "AFTER_EP_SUSPEND");
 	return ret;
 }
@@ -1061,9 +1066,6 @@ static int dhdpcie_resume_dev(struct pci_dev *dev)
 #if defined(OEM_ANDROID) && (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0))
 	pci_load_and_free_saved_state(dev, &pch->state);
 #endif /* OEM_ANDROID && LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0) */
-#ifdef OEM_ANDROID
-	dev->state_saved = TRUE;
-#endif /* OEM_ANDROID */
 	pci_restore_state(dev);
 #ifdef FORCE_TPOWERON
 	if (dhdpcie_chip_req_forced_tpoweron(pch->bus)) {
@@ -1648,6 +1650,18 @@ dhdpcie_pci_remove(struct pci_dev *pdev)
 
 	return;
 }
+
+#ifdef DHD_WIFI_SHUTDOWN
+void __devexit
+dhdpcie_pci_shutdown(struct pci_dev *pdev)
+{
+	DHD_ERROR(("%s: Enter\n", __FUNCTION__));
+
+	dhdpcie_pci_remove(pdev);
+
+	return;
+}
+#endif
 
 /* Enable Linux Msi */
 int
@@ -2842,7 +2856,7 @@ int dhdpcie_oob_intr_register(dhd_bus_t *bus)
 	}
 
 	if (dhdpcie_osinfo->oob_irq_num > 0) {
-		DHD_INFO_HW4(("%s OOB irq=%d flags=%X \n", __FUNCTION__,
+		DHD_ERROR(("%s OOB irq=%d flags=%X \n", __FUNCTION__,
 			(int)dhdpcie_osinfo->oob_irq_num,
 			(int)dhdpcie_osinfo->oob_irq_flags));
 		err = request_irq(dhdpcie_osinfo->oob_irq_num, wlan_oob_irq,

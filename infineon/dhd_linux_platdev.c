@@ -63,6 +63,11 @@
 extern void wifi_plat_dev_drv_shutdown(struct platform_device *pdev);
 #endif // endif
 
+#if defined(CUSTOMER_HW) || defined(BCMDHD_PLATDEV)
+extern int dhd_wlan_init_plat_data(wifi_adapter_info_t *adapter);
+extern void dhd_wlan_deinit_plat_data(wifi_adapter_info_t *adapter);
+#endif /* CUSTOMER_HW */
+
 #ifdef CONFIG_DTS
 struct regulator *wifi_regulator = NULL;
 #endif /* CONFIG_DTS */
@@ -203,7 +208,7 @@ int wifi_platform_set_power(wifi_adapter_info_t *adapter, bool on, unsigned long
 		}
 #endif /* ENABLE_4335BT_WAR */
 
-		err = plat_data->set_power(on);
+		err = plat_data->set_power(on, adapter);
 	}
 
 	if (msec && !err)
@@ -271,7 +276,8 @@ int wifi_platform_bus_enumerate(wifi_adapter_info_t *adapter, bool device_presen
 }
 #endif /* PLATFORM_IMX */
 
-int wifi_platform_get_mac_addr(wifi_adapter_info_t *adapter, unsigned char *buf)
+int wifi_platform_get_mac_addr(wifi_adapter_info_t *adapter, unsigned char *buf,
+int ifidx)
 {
 	struct wifi_platform_data *plat_data;
 
@@ -280,7 +286,7 @@ int wifi_platform_get_mac_addr(wifi_adapter_info_t *adapter, unsigned char *buf)
 		return -EINVAL;
 	plat_data = adapter->wifi_plat_data;
 	if (plat_data->get_mac_addr) {
-		return plat_data->get_mac_addr(buf);
+		return plat_data->get_mac_addr(buf, ifidx);
 	}
 	return -EOPNOTSUPP;
 }
@@ -544,9 +550,15 @@ static int wifi_ctrlfunc_register_drv(void)
 	if (dts_enabled) {
 		struct resource *resource;
 		adapter->wifi_plat_data = (void *)&dhd_wlan_control;
+#ifdef CUSTOMER_HW
+		wifi_plat_dev_probe_ret = dhd_wlan_init_plat_data(adapter);
+		if (wifi_plat_dev_probe_ret)
+			return wifi_plat_dev_probe_ret;
+#endif
 		resource = &dhd_wlan_resources;
-		adapter->irq_num = resource->start;
-		adapter->intr_flags = resource->flags & IRQF_TRIGGER_MASK;
+		//adapter->irq_num = resource->start;
+		//adapter->intr_flags = resource->flags & IRQF_TRIGGER_MASK;
+
 #ifdef DHD_ISR_NO_SUSPEND
 		adapter->intr_flags |= IRQF_NO_SUSPEND;
 #endif // endif

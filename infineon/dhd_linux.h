@@ -240,15 +240,34 @@ typedef struct dhd_tx_lb_pkttag_fr {
 				} \
 			} while (0)
 
+typedef struct wifi_adapter_info {
+	const char	*name;
+	uint		irq_num;
+	uint		intr_flags;
+	const char	*fw_path;
+	const char	*nv_path;
+	void		*wifi_plat_data;	/* wifi ctrl func, for backward compatibility */
+	uint		bus_type;
+	int index;
+	uint		bus_num;
+	uint		slot_num;
+	int         gpio_wl_reg_on;
+	int         gpio_wl_host_wake;
+#if defined(BT_OVER_SDIO)
+	const char	*btfw_path;
+#endif /* defined (BT_OVER_SDIO) */
+} wifi_adapter_info_t;
+
 #if !defined(CONFIG_WIFI_CONTROL_FUNC)
 #define WLAN_PLAT_NODFS_FLAG	0x01
 #define WLAN_PLAT_AP_FLAG	0x02
 struct wifi_platform_data {
-	int (*set_power)(int val);
+	int (*set_power)(int val,  wifi_adapter_info_t *adapter);
 	int (*set_reset)(int val);
 	int (*set_carddetect)(int val);
 	void *(*mem_prealloc)(int section, unsigned long size);
-	int (*get_mac_addr)(unsigned char *buf);
+	//int (*get_mac_addr)(unsigned char *buf);
+	int (*get_mac_addr)(unsigned char *buf, int ifidx);
 #ifdef BCMSDIO
 	int (*get_wake_irq)(void);
 #endif // endif
@@ -262,20 +281,6 @@ struct wifi_platform_data {
 
 #define DHD_REGISTRATION_TIMEOUT  12000  /* msec : allowed time to finished dhd registration */
 
-typedef struct wifi_adapter_info {
-	const char	*name;
-	uint		irq_num;
-	uint		intr_flags;
-	const char	*fw_path;
-	const char	*nv_path;
-	void		*wifi_plat_data;	/* wifi ctrl func, for backward compatibility */
-	uint		bus_type;
-	uint		bus_num;
-	uint		slot_num;
-#if defined(BT_OVER_SDIO)
-	const char	*btfw_path;
-#endif /* defined (BT_OVER_SDIO) */
-} wifi_adapter_info_t;
 
 typedef struct bcmdhd_wifi_platdata {
 	uint				num_adapters;
@@ -390,7 +395,7 @@ wifi_adapter_info_t* dhd_wifi_platform_get_adapter(uint32 bus_type, uint32 bus_n
 int wifi_platform_set_power(wifi_adapter_info_t *adapter, bool on, unsigned long msec);
 int wifi_platform_bus_enumerate(wifi_adapter_info_t *adapter, bool device_present);
 int wifi_platform_get_irq_number(wifi_adapter_info_t *adapter, unsigned long *irq_flags_ptr);
-int wifi_platform_get_mac_addr(wifi_adapter_info_t *adapter, unsigned char *buf);
+int wifi_platform_get_mac_addr(wifi_adapter_info_t *adapter, unsigned char *buf, int ifidx);
 #ifdef CUSTOM_COUNTRY_CODE
 void *wifi_platform_get_country_code(wifi_adapter_info_t *adapter, char *ccode,
 	u32 flags);

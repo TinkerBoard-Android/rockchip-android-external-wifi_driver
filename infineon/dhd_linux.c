@@ -6942,7 +6942,7 @@ struct net_info *iter, *next;
 	dhd_info_t *dhd = DHD_DEV_INFO(net);
 	DHD_OS_WAKE_LOCK(&dhd->pub);
 	DHD_PERIM_LOCK(&dhd->pub);
-	DHD_TRACE(("%s: Enter %p\n", __FUNCTION__, net));
+	DHD_TRACE(("%s: Enter dhd_stop %p\n", __FUNCTION__, net));
 	dhd->pub.rxcnt_timeout = 0;
 	dhd->pub.txcnt_timeout = 0;
 
@@ -7149,14 +7149,13 @@ struct net_info *iter, *next;
 	OLD_MOD_DEC_USE_COUNT;
 exit:
 	if (skip_reset == false) {
+		DHD_ERROR(("%s: skip_reset is false \n", __FUNCTION__));
 #if defined(WL_CFG80211) && defined(OEM_ANDROID)
-		if (ifidx == 0 && !dhd_download_fw_on_driverload) {
-#if defined(BT_OVER_SDIO)
-			dhd_bus_put(&dhd->pub, WLAN_MODULE);
-			wl_android_set_wifi_on_flag(FALSE);
-#else
-			wl_android_wifi_off(net, TRUE);
-#endif /* BT_OVER_SDIO */
+		if (ifidx == 0) {
+		DHD_ERROR(("%s: enter wl_android_wifi_off \n", __FUNCTION__));
+
+		wl_android_wifi_off(net, TRUE);
+
 		}
 #ifdef SUPPORT_DEEP_SLEEP
 		else {
@@ -8978,7 +8977,7 @@ dhd_attach(osl_t *osh, struct dhd_bus *bus, uint bus_hdrlen)
 #endif /* DHD_DEBUG */
 
 #ifdef GET_CUSTOM_MAC_ENABLE
-	wifi_platform_get_mac_addr(dhd->adapter, dhd->pub.mac.octet);
+	wifi_platform_get_mac_addr(dhd->adapter, dhd->pub.mac.octet, 0);
 #endif /* GET_CUSTOM_MAC_ENABLE */
 #ifdef CUSTOM_FORCE_NODFS_FLAG
 	dhd->pub.dhd_cflags |= WLAN_PLAT_NODFS_FLAG;
@@ -10830,7 +10829,7 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 #endif /* EVENT_LOG_RATE_HC */
 
 #ifdef GET_CUSTOM_MAC_ENABLE
-	ret = wifi_platform_get_mac_addr(dhd->info->adapter, ea_addr.octet);
+	ret = wifi_platform_get_mac_addr(dhd->info->adapter, ea_addr.octet, 0);
 	if (!ret) {
 		ret = dhd_iovar(dhd, 0, "cur_etheraddr", (char *)&ea_addr, ETHER_ADDR_LEN, NULL, 0,
 				TRUE);
