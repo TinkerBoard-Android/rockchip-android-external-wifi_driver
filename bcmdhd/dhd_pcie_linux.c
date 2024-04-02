@@ -47,7 +47,7 @@
 #include <pcicfg.h>
 #include <dhd_pcie.h>
 #include <dhd_linux.h>
-#ifdef CONFIG_PCIEASPM_ROCKCHIP_WIFI_EXTENSION
+#if IS_ENABLED(CONFIG_PCIEASPM_ROCKCHIP_WIFI_EXTENSION)
 #include <rk_dhd_pcie_linux.h>
 #endif /* CONFIG_PCIEASPM_ROCKCHIP_WIFI_EXTENSION */
 #ifdef OEM_ANDROID
@@ -641,17 +641,15 @@ dhd_bus_is_rc_ep_l1ss_capable(dhd_bus_t *bus)
 	uint32 rc_l1ss_cap;
 	uint32 ep_l1ss_cap;
 
-#ifdef CONFIG_PCIEASPM_ROCKCHIP_WIFI_EXTENSION
-	if (IS_ENABLED(CONFIG_PCIEASPM_ROCKCHIP_WIFI_EXTENSION)) {
-		if (rk_dhd_bus_is_rc_ep_l1ss_capable(bus)) {
-			DHD_ERROR(("%s L1ss is capable\n", __FUNCTION__));
-			return TRUE;
-		} else {
-			DHD_ERROR(("%s L1ss is not capable\n", __FUNCTION__));
-			return FALSE;
-		}
+#if IS_ENABLED(CONFIG_PCIEASPM_ROCKCHIP_WIFI_EXTENSION)
+	if (rk_dhd_bus_is_rc_ep_l1ss_capable(bus)) {
+		DHD_ERROR(("%s L1ss is capable\n", __FUNCTION__));
+		return TRUE;
+	} else {
+		DHD_ERROR(("%s L1ss is not capable\n", __FUNCTION__));
+		return FALSE;
 	}
-#endif /* CONFIG_PCIEASPM_ROCKCHIP_WIFI_EXTENSION */
+#endif
 
 	/* RC Extendend Capacility */
 	rc_l1ss_cap = dhdpcie_access_cap(bus->rc_dev, PCIE_EXTCAP_ID_L1SS,
@@ -2443,6 +2441,7 @@ dhdpcie_stop_host_dev(dhd_bus_t *bus)
 	ret = tegra_pcie_pm_suspend();
 #endif /* CONFIG_ARCH_TEGRA_210_SOC */
 #endif /* CONFIG_ARCH_TEGRA */
+
 	if (ret) {
 		DHD_ERROR(("Failed to stop PCIe link\n"));
 		goto done;
