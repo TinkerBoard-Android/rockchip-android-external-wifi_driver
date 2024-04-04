@@ -58,7 +58,7 @@ ifeq "$(GCCVERSIONGTEQ9)" "1"
 endif
 GCCVERSIONGTEQ7 := $(shell expr `$(CROSS_COMPILE)gcc -dumpversion | cut -f1 -d.` \>= 7)
 ifeq "$(GCCVERSIONGTEQ7)" "1"
-    DHDCFLAGS += -Wimplicit-fallthrough=3
+    DHDCFLAGS += -Wimplicit-fallthrough
 endif
 
  DHDCFLAGS += -Wno-unused-const-variable
