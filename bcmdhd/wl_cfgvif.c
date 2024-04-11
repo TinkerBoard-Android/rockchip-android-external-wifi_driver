@@ -501,9 +501,11 @@ wl_cfg80211_get_sec_iface(struct bcm_cfg80211 *cfg)
 	p2p_ndev = wl_to_p2p_bss_ndev(cfg,
 		P2PAPI_BSSCFG_CONNECTION1);
 
+#ifndef P2P_AP_CONCURRENT
 	if (dhd->op_mode & DHD_FLAG_HOSTAP_MODE) {
 		return WL_IF_TYPE_AP;
 	}
+#endif
 
 	if (p2p_ndev && p2p_ndev->ieee80211_ptr) {
 		if (p2p_ndev->ieee80211_ptr->iftype == NL80211_IFTYPE_P2P_GO) {
@@ -4582,8 +4584,16 @@ s32
 wl_cfg80211_change_beacon(
 	struct wiphy *wiphy,
 	struct net_device *dev,
-	struct cfg80211_beacon_data *info)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 7, 0))
+	struct cfg80211_ap_update *ap_info
+#else
+	struct cfg80211_beacon_data *info
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6, 7, 0) */
+)
 {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 7, 0))
+	struct cfg80211_beacon_data *info = &ap_info->beacon;
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6, 7, 0) */
 	s32 err = BCME_OK;
 	struct bcm_cfg80211 *cfg = wiphy_priv(wiphy);
 	struct parsed_ies ies;

@@ -25,6 +25,7 @@
  */
 
 #include <dhd_linux_priv.h>
+#include <wl_android.h>
 
 extern dhd_pub_t* g_dhd_pub;
 
@@ -1229,6 +1230,12 @@ dhd_lb_rx_napi_dispatch(dhd_pub_t *dhdp)
 		dhd_napi_schedule(dhd);
 		return;
 	}
+#ifdef TPUT_MONITOR
+	if (wl_ext_tput_get(dhdp) < dhdp->conf->napi_tput_thresh) {
+		dhd_napi_schedule(dhd);
+		return;
+	}
+#endif /* TPUT_MONITOR */
 
 	/*
 	 * Get cpu will disable pre-ermption and will not allow any cpu to go offline

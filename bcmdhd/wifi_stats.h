@@ -383,7 +383,7 @@ typedef struct {
 	uint32 on_time;
 	uint32 tx_time;
 	uint32 num_tx_levels;
-	compat_uptr_t tx_time_per_levels;          /* wifi interface */
+	compat_uptr_t tx_time_per_levels;
 	uint32 rx_time;
 	uint32 on_time_scan;
 	uint32 on_time_nbd;

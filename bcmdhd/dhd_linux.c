@@ -20911,9 +20911,13 @@ int custom_xps_map_set(struct net_device *net, char *buf, size_t len)
 		return err;
 	}
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0))
 	cpus_read_lock();
 	err = __netif_set_xps_queue(net, cpumask_bits(mask), 0, XPS_CPUS);
 	cpus_read_unlock();
+#else
+	err = netif_set_xps_queue(net, mask, 0);
+#endif
 
 	free_cpumask_var(mask);
 

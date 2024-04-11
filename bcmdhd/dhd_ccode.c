@@ -228,7 +228,7 @@ const ccode_list_map_t ccode_list_map[] = {
 	{BCM4375_CHIP_ID,	5,	ccode_4375b4,	""},
 #endif
 #ifdef BCMDBUS
-	{BCM43569_CHIP_ID,	2,	ccode_4358u, "XW/0"},
+	{BCM43569_CHIP_ID,	2,	ccode_4358u, "XZ/11"},
 #endif
 };
 

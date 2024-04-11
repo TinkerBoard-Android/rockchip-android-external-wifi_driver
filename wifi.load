@@ -1,4 +1,5 @@
+external/wifi_driver/infineon/cyw88459.ko
 external/wifi_driver/bcmdhd/bcmdhd.ko
 external/wifi_driver/aic8800/aic8800_fdrv/aic8800_fdrv.ko
-external/wifi_driver/aic8800/aic8800_btlpm/aic8800_btlpm.ko
 external/wifi_driver/aic8800/aic8800_bsp/aic8800_bsp.ko
+external/wifi_driver/aic8800/aic8800_btlpm/aic8800_btlpm.ko

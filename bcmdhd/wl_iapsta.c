@@ -4690,6 +4690,13 @@ wl_tput_dump(struct wl_apsta_params *apsta_params,
 		(apsta_params->tput_sum_kb/10)%10, (apsta_params->tput_sum_kb)%10);
 }
 
+int32
+wl_ext_tput_get(struct dhd_pub *dhd)
+{
+	struct wl_apsta_params *apsta_params = dhd->iapsta_params;
+	return apsta_params->tput_sum;
+}
+
 static void
 wl_sta_info_dump(struct net_device *dev, struct ether_addr *mac)
 {

@@ -377,6 +377,9 @@ typedef struct dhd_conf {
 #ifdef BCMSDIO
 	int32 doflow_tput_thresh;
 #endif
+#ifdef BCMPCIE
+	int32 napi_tput_thresh;
+#endif
 #endif
 #ifdef SCAN_SUPPRESS
 	uint scan_intput;

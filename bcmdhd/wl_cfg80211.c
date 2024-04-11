@@ -18273,14 +18273,11 @@ static s32 wl_init_priv(struct bcm_cfg80211 *cfg)
 	struct wiphy *wiphy = bcmcfg_to_wiphy(cfg);
 	struct net_device *ndev = bcmcfg_to_prmry_ndev(cfg);
 	s32 err = 0;
-	dhd_pub_t *dhd = cfg->pub;
 
 	cfg->scan_request = NULL;
 	cfg->pwr_save = !!(wiphy->flags & WIPHY_FLAG_PS_ON_BY_DEFAULT);
 #ifdef DISABLE_BUILTIN_ROAM
 	cfg->roam_on = false;
-#else
-	cfg->roam_on = dhd->conf->roam_off ? false : true;
 #endif /* DISABLE_BUILTIN_ROAM */
 	cfg->active_scan = true;
 	cfg->rf_blocked = false;
@@ -18288,8 +18285,7 @@ static s32 wl_init_priv(struct bcm_cfg80211 *cfg)
 #if defined(BCMSDIO) || defined(BCMDBUS)
 	cfg->wlfc_on = false;
 #endif /* BCMSDIO || BCMDBUS */
-	if (!dhd->conf->roam_off)
-		cfg->roam_flags |= WL_ROAM_OFF_ON_CONCURRENT;
+	cfg->roam_flags |= WL_ROAM_OFF_ON_CONCURRENT;
 	cfg->disable_roam_event = false;
 	/* register interested state */
 	set_bit(WL_STATUS_CONNECTED, &cfg->interrested_state);
@@ -27108,7 +27104,11 @@ wl_cfg80211_debug_data_dump(struct net_device *dev, u8 *buf, u32 buf_len)
 void
 wl_cfg80211_wdev_lock(struct wireless_dev *wdev)
 {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 7, 0))
+	wiphy_lock(wdev->wiphy);
+#else
 	mutex_lock(&wdev->mtx);
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6, 7, 0) */
 	__acquire(wdev->mtx);
 }
 
@@ -27116,7 +27116,11 @@ void
 wl_cfg80211_wdev_unlock(struct wireless_dev *wdev)
 {
 	__release(wdev->mtx);
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 7, 0))
+	wiphy_unlock(wdev->wiphy);
+#else
 	mutex_unlock(&wdev->mtx);
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6, 7, 0) */
 }
 
 #ifdef AUTH_ASSOC_STATUS_EXT

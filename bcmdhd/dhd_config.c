@@ -4870,6 +4870,14 @@ dhd_conf_read_others(dhd_pub_t *dhd, char *full_param, uint len_param)
 			conf->tput_monitor_ms = 1000;
 	}
 #endif
+#ifdef BCMPCIE
+	else if (!strncmp("napi_tput_thresh=", full_param, len_param)) {
+		conf->napi_tput_thresh = (int)simple_strtol(data, NULL, 0);
+		CONFIG_MSG("napi_tput_thresh = %d\n", conf->napi_tput_thresh);
+		if (conf->napi_tput_thresh > 0)
+			conf->tput_monitor_ms = 1000;
+	}
+#endif
 #endif
 #ifdef SCAN_SUPPRESS
 	else if (!strncmp("scan_intput=", full_param, len_param)) {
@@ -5333,6 +5341,10 @@ dhd_conf_preinit_ioctls_sta(dhd_pub_t *dhd, int ifidx)
 {
 	struct dhd_conf *conf = dhd->conf;
 	int pm;
+#ifdef WL_CFG80211
+	struct net_device *net = dhd_idx2net(dhd, ifidx);
+	struct bcm_cfg80211 *cfg = wl_get_cfg(net);
+#endif /* defined(WL_CFG80211) */
 
 	dhd_conf_set_intiovar(dhd, ifidx, WLC_SET_VAR, "bcn_timeout", conf->bcn_timeout, 0, FALSE);
 #ifdef NO_POWER_SAVE
@@ -5346,6 +5358,16 @@ dhd_conf_preinit_ioctls_sta(dhd_pub_t *dhd, int ifidx)
 	dhd_conf_set_intiovar(dhd, ifidx, WLC_SET_PM, "WLC_SET_PM", pm, 0, FALSE);
 	dhd_conf_set_intiovar(dhd, ifidx, WLC_SET_VAR, "assoc_retry_max", 10, 0, FALSE);
 	dhd_conf_set_roam(dhd, ifidx);
+
+#ifdef WL_CFG80211
+#ifndef DISABLE_BUILTIN_ROAM
+	cfg->roam_on = conf->roam_off ? false : true;
+#endif
+	if (conf->roam_off)
+		cfg->roam_flags = 0;
+	else
+		cfg->roam_flags |= WL_ROAM_OFF_ON_CONCURRENT;
+#endif /* defined(WL_CFG80211) */
 }
 
 void
@@ -5701,6 +5723,10 @@ dhd_conf_preinit(dhd_pub_t *dhd)
 		conf->doflow_tput_thresh = 9999;
 	if (conf->doflow_tput_thresh > 0 && conf->doflow_tput_thresh < 9999)
 		conf->tput_monitor_ms = 1000;
+#endif
+#ifdef BCMPCIE
+	conf->napi_tput_thresh = 200;
+	conf->tput_monitor_ms = 1000;
 #endif
 #endif
 #ifdef SCAN_SUPPRESS

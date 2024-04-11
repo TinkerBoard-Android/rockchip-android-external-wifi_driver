@@ -280,7 +280,9 @@ static const struct dev_pm_ops dhd_pcie_pm_ops = {
 #endif
 
 static struct pci_driver dhdpcie_driver = {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 8, 0))
 	node:		{&dhdpcie_driver.node, &dhdpcie_driver.node},
+#endif /* LINUX_VERSION_CODE < 6.8.0 */
 	name:		"pcieh"BUS_TYPE,
 	id_table:	dhdpcie_pci_devid,
 	probe:		dhdpcie_pci_probe,
@@ -2441,7 +2443,6 @@ dhdpcie_stop_host_dev(dhd_bus_t *bus)
 	ret = tegra_pcie_pm_suspend();
 #endif /* CONFIG_ARCH_TEGRA_210_SOC */
 #endif /* CONFIG_ARCH_TEGRA */
-
 	if (ret) {
 		DHD_ERROR(("Failed to stop PCIe link\n"));
 		goto done;

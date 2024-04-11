@@ -105,4 +105,7 @@ void wl_ext_reset_scan_busy(dhd_pub_t *dhd);
 #ifdef PROPTX_MAXCOUNT
 int wl_ext_get_wlfc_maxcount(struct dhd_pub *dhd, int ifidx);
 #endif /* PROPTX_MAXCOUNT */
+#ifdef TPUT_MONITOR
+int32 wl_ext_tput_get(struct dhd_pub *dhd);
+#endif /* TPUT_MONITOR */
 #endif

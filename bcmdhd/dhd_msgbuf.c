@@ -5475,11 +5475,13 @@ BCMFASTPATH(dhd_prot_rxbuf_post)(dhd_pub_t *dhd, uint16 count, bool use_rsv_pkti
 	pktlen = (uint32 *)((uint8 *)pktbuf_pa + sizeof(dmaaddr_t) * prot->rx_buf_burst);
 
 	for (i = 0; i < count; i++) {
+		if (
+#if defined(DHD_LB_RXP)
 		/* First try to dequeue from emergency queue which will be filled
 		 * during rx flow control.
 		*/
-		p = dhd_rx_emerge_dequeue(dhd);
-		if ((p == NULL) &&
+		((p = dhd_rx_emerge_dequeue(dhd)) == NULL) &&
+#endif /* DHD_LB_RXP */
 			((p = PKTGET(dhd->osh, prot->rxbufpost_alloc_sz, FALSE)) == NULL)) {
 			dhd->rx_pktgetfail++;
 			DHD_ERROR_RLMT(("%s:%d: PKTGET for rxbuf failed, rx_pktget_fail :%lu\n",
