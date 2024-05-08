@@ -53,17 +53,11 @@ DHDCFLAGS += -Wall -Wstrict-prototypes -Dlinux -DLINUX -DBCMDRIVER            \
 	-DDHD_RND_DEBUG -DDHD_DUMP_FILE_WRITE_FROM_KERNEL		\
 	-DDHD_DONOT_FORWARD_BCMEVENT_AS_NETWORK_PKT
 
-GCCVERSIONGTEQ9 := $(shell expr `$(CROSS_COMPILE)gcc -dumpversion | cut -f1 -d.` \>= 9)
-ifeq "$(GCCVERSIONGTEQ9)" "1"
-    DHDCFLAGS += -Wno-error=date-time
-endif
-GCCVERSIONGTEQ7 := $(shell expr `$(CROSS_COMPILE)gcc -dumpversion | cut -f1 -d.` \>= 7)
-ifeq "$(GCCVERSIONGTEQ7)" "1"
-    DHDCFLAGS += -Wimplicit-fallthrough
-endif
+DHDCFLAGS += -Wno-error=date-time
+DHDCFLAGS += -Wimplicit-fallthrough
 
- DHDCFLAGS += -Wno-unused-const-variable
- DHDCFLAGS += -Wno-unused-but-set-variable
+DHDCFLAGS += -Wno-unused-const-variable
+DHDCFLAGS += -Wno-unused-but-set-variable
 # DHDCFLAGS += -Wunused-but-set-variable
  DHDCFLAGS += -Wcast-function-type
  DHDCFLAGS += -Wno-unneeded-internal-declaration
