@@ -4314,16 +4314,15 @@ wl_cfgscan_sched_scan_stop_work(struct work_struct *work)
 	cfg = container_of(dw, struct bcm_cfg80211, sched_scan_stop_work);
 	GCC_DIAGNOSTIC_POP();
 
-	if (cfg->sched_scan_req) {
 	/* Hold rtnl_lock -> scan_sync lock to be in sync with cfg80211_ops path */
-		wiphy = cfg->sched_scan_req->wiphy;
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 12, 0))
-		wiphy_lock(wiphy);
+	wiphy_lock(wiphy);
 #else
-		rtnl_lock();
+	rtnl_lock();
 #endif /* KERNEL > 5.12.0 */
-		mutex_lock(&cfg->scan_sync);
-
+	mutex_lock(&cfg->scan_sync);
+	if (cfg->sched_scan_req) {
+		wiphy = cfg->sched_scan_req->wiphy;
 		/* Indicate sched scan stopped so that user space
 		 * can do a full scan incase found match is empty.
 		 */
@@ -4335,13 +4334,13 @@ wl_cfgscan_sched_scan_stop_work(struct work_struct *work)
 		cfg80211_sched_scan_stopped_rtnl(wiphy);
 #endif /* KERNEL > 5.12.0 */
 		cfg->sched_scan_req = NULL;
-		mutex_unlock(&cfg->scan_sync);
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 12, 0))
-		wiphy_unlock(wiphy);
-#else
-		rtnl_unlock();
-#endif /* KERNEL > 5.12.0 */
 	}
+	mutex_unlock(&cfg->scan_sync);
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 12, 0))
+	wiphy_unlock(wiphy);
+#else
+	rtnl_unlock();
+#endif /* KERNEL > 5.12.0 */
 }
 #endif /* WL_SCHED_SCAN */
 
