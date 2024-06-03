@@ -1,7 +1,26 @@
 /*
  * Linux DHD Bus Module for PCIE
  *
- * Copyright (C) 2022, Broadcom.
+ * Copyright (C) 2024 Synaptics Incorporated. All rights reserved.
+ *
+ * This software is licensed to you under the terms of the
+ * GNU General Public License version 2 (the "GPL") with Broadcom special exception.
+ *
+ * INFORMATION CONTAINED IN THIS DOCUMENT IS PROVIDED "AS-IS," AND SYNAPTICS
+ * EXPRESSLY DISCLAIMS ALL EXPRESS AND IMPLIED WARRANTIES, INCLUDING ANY
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE,
+ * AND ANY WARRANTIES OF NON-INFRINGEMENT OF ANY INTELLECTUAL PROPERTY RIGHTS.
+ * IN NO EVENT SHALL SYNAPTICS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, PUNITIVE, OR CONSEQUENTIAL DAMAGES ARISING OUT OF OR IN CONNECTION
+ * WITH THE USE OF THE INFORMATION CONTAINED IN THIS DOCUMENT, HOWEVER CAUSED
+ * AND BASED ON ANY THEORY OF LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+ * NEGLIGENCE OR OTHER TORTIOUS ACTION, AND EVEN IF SYNAPTICS WAS ADVISED OF
+ * THE POSSIBILITY OF SUCH DAMAGE. IF A TRIBUNAL OF COMPETENT JURISDICTION
+ * DOES NOT PERMIT THE DISCLAIMER OF DIRECT DAMAGES OR ANY OTHER DAMAGES,
+ * SYNAPTICS' TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT
+ * EXCEED ONE HUNDRED U.S. DOLLARS
+ *
+ * Copyright (C) 2024, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -47,9 +66,9 @@
 #include <pcicfg.h>
 #include <dhd_pcie.h>
 #include <dhd_linux.h>
-#if IS_ENABLED(CONFIG_PCIEASPM_ROCKCHIP_WIFI_EXTENSION)
+#if defined(CUSTOMER_HW_ROCKCHIP) && IS_ENABLED(CONFIG_PCIEASPM_ROCKCHIP_WIFI_EXTENSION)
 #include <rk_dhd_pcie_linux.h>
-#endif /* CONFIG_PCIEASPM_ROCKCHIP_WIFI_EXTENSION */
+#endif /* CUSTOMER_HW_ROCKCHIP && CONFIG_PCIEASPM_ROCKCHIP_WIFI_EXTENSION */
 #ifdef OEM_ANDROID
 #ifdef CONFIG_ARCH_MSM
 #if IS_ENABLED(CONFIG_PCI_MSM) || defined(CONFIG_ARCH_MSM8996)
@@ -87,7 +106,7 @@
 
 #include <dhd_plat.h>
 
-#ifdef CONFIG_ARCH_ROCKCHIP
+#if defined(CUSTOMER_HW_ROCKCHIP) && defined(CONFIG_ARCH_ROCKCHIP)
 #include <linux/aspm_ext.h>
 #endif
 
@@ -647,7 +666,7 @@ dhd_bus_is_rc_ep_l1ss_capable(dhd_bus_t *bus)
 	uint32 rc_l1ss_cap;
 	uint32 ep_l1ss_cap;
 
-#if IS_ENABLED(CONFIG_PCIEASPM_ROCKCHIP_WIFI_EXTENSION)
+#if defined(CUSTOMER_HW_ROCKCHIP) && IS_ENABLED(CONFIG_PCIEASPM_ROCKCHIP_WIFI_EXTENSION)
 	if (rk_dhd_bus_is_rc_ep_l1ss_capable(bus)) {
 		DHD_ERROR(("%s L1ss is capable\n", __FUNCTION__));
 		return TRUE;
@@ -655,7 +674,7 @@ dhd_bus_is_rc_ep_l1ss_capable(dhd_bus_t *bus)
 		DHD_ERROR(("%s L1ss is not capable\n", __FUNCTION__));
 		return FALSE;
 	}
-#endif
+#endif /* CUSTOMER_HW_ROCKCHIP && CONFIG_PCIEASPM_ROCKCHIP_WIFI_EXTENSION */
 
 	/* RC Extendend Capacility */
 	rc_l1ss_cap = dhdpcie_access_cap(bus->rc_dev, PCIE_EXTCAP_ID_L1SS,
@@ -2408,10 +2427,10 @@ dhdpcie_start_host_dev(dhd_bus_t *bus)
 	ret = tegra_pcie_pm_resume();
 #endif /* CONFIG_ARCH_TEGRA_210_SOC */
 #endif /* CONFIG_ARCH_TEGRA */
-#ifdef CONFIG_ARCH_ROCKCHIP
+#if defined(CUSTOMER_HW_ROCKCHIP) && defined(CONFIG_ARCH_ROCKCHIP)
 	if (bus->rc_dev)
 		ret = rockchip_dw_pcie_pm_ctrl_for_user(bus->rc_dev, ROCKCHIP_PCIE_PM_CTRL_RESET);
-#endif /* CONFIG_ARCH_ROCKCHIP */
+#endif /* CUSTOMER_HW_ROCKCHIP && CONFIG_ARCH_ROCKCHIP */
 
 	if (ret) {
 		DHD_ERROR(("%s Failed to bring up PCIe link\n", __FUNCTION__));
